@@ -2,7 +2,7 @@
 
 ## Overview
 
-A simple HTTP server that performs fuzzy searches on a data set loaded from a text file.
+A simple HTTP server that performs fuzzy searches on a dataset loaded from a text file.
 
 Uses [cpp-httplib](https://github.com/yhirose/cpp-httplib) and [nlohmann/json](https://github.com/nlohmann/json).
 
@@ -24,7 +24,7 @@ Uses [cpp-httplib](https://github.com/yhirose/cpp-httplib) and [nlohmann/json](h
 
 ## Example
 
-For a JSON file (`parks.json`) containing:
+For a JSON file `parks.json` containing:
 ```
 {"name": "Hyde Park", "city": "London", "lat": 51.507327, "lon": -0.169644}
 {"name": "Central Park", "city": "New York", "lat": 40.7825, "lon": -73.966111}
@@ -33,7 +33,7 @@ For a JSON file (`parks.json`) containing:
 
 Run:
 ```bash
-./server parks.json 1234
+./fuzzy-search-server parks.json 1234
 ```
 
 Query:
