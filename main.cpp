@@ -93,7 +93,7 @@ int main(int argc, char const *argv[])
 		port = atoi(argv[2]);
 	}
 
-	fuzzy::database<std::string> database;
+	fuzzy::sorted_database<std::string> database;
 
 	std::ifstream input(argv[1]);
 	std::string line;
@@ -123,6 +123,9 @@ int main(int argc, char const *argv[])
 	}
 	input.close();
 	std::cout << "parsed " << element_count << " entries in " << init_timer.get_and_reset() << "ms" << std::endl;
+	std::cout << "preparing database " << std::flush;
+	database.build();
+	std::cout << "took " << init_timer.get_and_reset() << "ms" << std::endl;
 
 	server.Get(
 		"/fuzzy",
