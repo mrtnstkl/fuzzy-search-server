@@ -97,14 +97,15 @@ int main(int argc, char const *argv[])
 
 	std::ifstream input(argv[1]);
 	std::string line;
+	timer init_timer;
+	unsigned line_count = 0;
 	unsigned element_count = 0;
 	if (input.good())
 	{
-		std::cout << "reading entries." << std::flush;
+		std::cout << "parsing dataset" << std::endl;
 	}
-	while (input.good())
+	while (std::getline(input, line), !line.empty() || input.good())
 	{
-		std::getline(input, line);
 		try
 		{
 			auto json = nlohmann::json::parse(line);
@@ -113,12 +114,15 @@ int main(int argc, char const *argv[])
 		}
 		catch (const std::exception &e)
 		{
+			if (!line.empty())
+			{
+				std::cerr << "error while parsing line " << line_count << ": " << e.what() << std::endl;
+			}
 		}
+		++line_count;
 	}
 	input.close();
-	std::cout
-		<< " done\n"
-		<< "processed " << element_count << " entries" << std::endl;
+	std::cout << "parsed " << element_count << " entries in " << init_timer.get_and_reset() << "ms" << std::endl;
 
 	server.Get(
 		"/fuzzy",
