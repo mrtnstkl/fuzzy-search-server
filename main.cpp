@@ -1,4 +1,5 @@
 #include <fstream>
+#include <csignal>
 
 #include "httplib.h"
 #include "json.hpp"
@@ -7,9 +8,21 @@
 
 int port = 8080;
 
+httplib::Server server;
+
+void signal_handler(int signal)
+{
+	if (signal == SIGINT)
+	{
+		std::cout << "SIGINT received\nstopping server" << std::endl;
+		server.stop();
+	}
+}
 
 int main(int argc, char const *argv[])
 {
+	std::signal(SIGINT, signal_handler);
+
 	if (argc < 2 || argc > 3)
 	{
 		std::cerr << "Usage: " << argv[0] << " INFILE [PORT]\n";
@@ -48,8 +61,7 @@ int main(int argc, char const *argv[])
 		<< " done\n"
 		<< "processed " << element_count << " entries" << std::endl;
 
-	httplib::Server svr;
-	svr.Get(
+	server.Get(
 		"/:query",
 		[&](const httplib::Request &req, httplib::Response &res)
 		{
@@ -59,12 +71,15 @@ int main(int argc, char const *argv[])
 			auto end = std::chrono::steady_clock::now();
 			using namespace std::chrono;
 			std::cout << "fuzzy-searched " << query_string << " in " << duration_cast<milliseconds>(end - start).count() << "ms: "
-					  << (query_result.empty() ? "not found" : query_result.best()[0].element.name.c_str()) << std::endl;
+					  << (query_result.empty() ? "not found" : query_result.best()[0].element.name) << std::endl;
 			res.set_content(query_result.empty() ? "{}" : query_result.best()[0].element.meta, "application/json");
 		});
 
 	std::cout << "\nstarting server on port " << port << std::endl;
-	svr.listen("0.0.0.0", port);
+	if (!server.listen("0.0.0.0", port))
+	{
+		std::cerr << "failed to start server" << std::endl;
+	}
 
 	return 0;
 }
