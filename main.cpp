@@ -44,6 +44,39 @@ std::string process_results(std::vector<fuzzy::result<T>> results, bool as_list 
 	return strstream.str();
 }
 
+class timer
+{
+	std::chrono::steady_clock::time_point start_, stop_;
+	bool running_;
+
+public:
+	timer()
+	{
+		reset();
+	}
+	void reset()
+	{
+		start_ = std::chrono::steady_clock::now();
+		running_ = true;
+	}
+	void stop()
+	{
+		running_ = false;
+		stop_ = std::chrono::steady_clock::now();
+	}
+	template <typename Duration = std::chrono::milliseconds>
+	uint64_t get()
+	{
+		return std::chrono::duration_cast<Duration>((running_ ? std::chrono::steady_clock::now() : stop_) - start_).count();
+	}
+	template <typename Duration = std::chrono::milliseconds>
+	uint64_t get_and_reset()
+	{
+		auto v = get<Duration>();
+		reset();
+		return v;
+	}
+};
 
 int main(int argc, char const *argv[])
 {
@@ -91,8 +124,6 @@ int main(int argc, char const *argv[])
 		"/fuzzy",
 		[&](const httplib::Request &req, httplib::Response &res)
 		{
-			using namespace std::chrono;
-
 			if (!req.has_param("q"))
 			{
 				res.status = 400;
@@ -103,11 +134,10 @@ int main(int argc, char const *argv[])
 			auto query_string = req.get_param_value("q");
 			bool respond_with_list = req.has_param("list") && req.get_param_value("list") == "yes";
 
-			auto start = steady_clock::now();
+			timer query_timer;
 			auto query_result = database.fuzzy_search(query_string);
-			auto end = steady_clock::now();
 			std::cout
-				<< "fuzzy-searched " << query_string << " in " << duration_cast<milliseconds>(end - start).count() << "ms: "
+				<< "fuzzy-searched " << query_string << " in " << query_timer.get() << "ms: "
 				<< (query_result.empty() ? "not found" : query_result.best()[0].element->name) << std::endl;
 
 			if (!respond_with_list && query_result.empty())
