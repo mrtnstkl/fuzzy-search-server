@@ -18,12 +18,12 @@ namespace fuzzy
 	namespace internal
 	{
 
-		ngram_token make_token(char c1 = '\0', char c2 = '\0', char c3 = '\0', char c4 = '\0')
+		inline ngram_token make_token(char c1 = '\0', char c2 = '\0', char c3 = '\0', char c4 = '\0')
 		{
 			return ngram_token(c1) << 0 | ngram_token(c2) << 8 | ngram_token(c3) << 16 | ngram_token(c4) << 24;
 		}
 
-		char to_lower(const char c)
+		inline char to_lower(const char c)
 		{
 			switch (c)
 			{
@@ -84,7 +84,7 @@ namespace fuzzy
 			}
 		}
 
-		bool case_insensitive_compare(const std::string_view a, const std::string_view b)
+		inline bool case_insensitive_compare(const std::string_view a, const std::string_view b)
 		{
 			for (uint16_t i = 0; i < std::min(a.size(), b.size()); ++i)
 			{
@@ -98,7 +98,7 @@ namespace fuzzy
 			return a.size() < b.size();
 		}
 
-		bool case_insensitive_equals(const std::string_view a, const std::string_view b)
+		inline bool case_insensitive_equals(const std::string_view a, const std::string_view b)
 		{
 			if (a.size() != b.size())
 				return false;
@@ -110,7 +110,7 @@ namespace fuzzy
 			return true;
 		}
 
-		bool case_insensitive_starts_with(const std::string_view str, const std::string_view sub_str)
+		inline bool case_insensitive_starts_with(const std::string_view str, const std::string_view sub_str)
 		{
 			if (str.size() < sub_str.size())
 				return false;
@@ -122,7 +122,7 @@ namespace fuzzy
 			return true;
 		}
 
-		int osa_distance(const std::string &s1, const std::string &s2)
+		inline int osa_distance(const std::string &s1, const std::string &s2)
 		{
 			int len_s1 = s1.size();
 			int len_s2 = s2.size();
