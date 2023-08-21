@@ -71,8 +71,8 @@ int main(int argc, char const *argv[])
 			auto end = std::chrono::steady_clock::now();
 			using namespace std::chrono;
 			std::cout << "fuzzy-searched " << query_string << " in " << duration_cast<milliseconds>(end - start).count() << "ms: "
-					  << (query_result.empty() ? "not found" : query_result.best()[0].element.name) << std::endl;
-			res.set_content(query_result.empty() ? "{}" : query_result.best()[0].element.meta, "application/json");
+					  << (query_result.empty() ? "not found" : query_result.best()[0].element->name) << std::endl;
+			res.set_content(query_result.empty() ? "{}" : query_result.best()[0].element->meta, "application/json");
 		});
 
 	std::cout << "\nstarting server on port " << port << std::endl;

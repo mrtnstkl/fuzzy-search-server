@@ -164,18 +164,22 @@ namespace fuzzy
 	using namespace internal;
 
 	template <typename T>
-	struct entry
+	struct db_entry
 	{
 		std::string name;
 		T meta;
 	};
 
 	template <typename T>
+	using db_entry_reference = db_entry<T>*;
+
+	template <typename T>
 	struct result
 	{
-		entry<T> &element;
-		const int distance;
-		result(entry<T> &element, int distance)
+
+		db_entry_reference<T> element;
+		int distance;
+		result(db_entry_reference<T> element, int distance)
 			: element(element), distance(distance)
 		{
 		}
@@ -184,47 +188,43 @@ namespace fuzzy
 	template <typename T>
 	class results
 	{
-		std::map<int, std::vector<entry<T> *>> results_;
+		std::map<int, std::vector<result<T>>> results_;
 
 	public:
-		void add(entry<T> &element, int distance)
+		void add(db_entry_reference<T> element, int distance)
 		{
-			results_[distance].push_back(&element);
+			results_[distance].emplace_back(element, distance);
 		}
+
 		bool empty() const
 		{
 			return results_.empty();
 		}
+
 		std::vector<result<T>> best()
 		{
-			std::vector<result<T>> results;
-			auto best_bucket = results_.begin();
-			for (auto &res : best_bucket->second)
-			{
-				results.emplace_back(*res, best_bucket->first);
-			}
-			return results;
+			return results_.begin()->second;
 		}
 
 		std::vector<result<T>> extract(uint32_t max_count = UINT32_MAX, int max_distance = INT_MAX)
 		{
-			std::vector<result<T>> results;
-			for (auto &distance_bucket : results_)
+			std::vector<result<T>> extracted_results;
+			for (const auto &[result_distance, results_at_that_distance] : results_)
 			{
-				if (distance_bucket.first > max_distance)
+				if (result_distance > max_distance)
 				{
 					break;
 				}
-				for (auto &res : distance_bucket.second)
+				for (result<T> result : results_at_that_distance)
 				{
-					results.emplace_back(*res, distance_bucket.first);
-					if (results.size() >= max_count)
+					extracted_results.push_back(result);
+					if (extracted_results.size() >= max_count)
 					{
-						return results;
+						return extracted_results;
 					}
 				}
 			}
-			return results;
+			return extracted_results;
 		}
 	};
 
@@ -232,30 +232,18 @@ namespace fuzzy
 	class database
 	{
 	protected:
+
 		class ngram_bucket
 		{
-			static constexpr uint64_t max_bucket_size = UINT64_MAX; // breaks shit
-
-			uint16_t length_limit_ = UINT16_MAX;
 			uint64_t elements_ = 0;
 			std::map<uint16_t, std::vector<id_type>> data_;
 
 		public:
-			void add(id_type id, uint16_t length)
+
+			void add(id_type id, uint16_t word_length)
 			{
-				if (length >= length_limit_)
-				{
-					return;
-				}
-				data_[length].push_back(id);
+				data_[word_length].push_back(id);
 				++elements_;
-				if (elements_ > max_bucket_size)
-				{
-					const auto &longest_elements = *data_.crbegin();
-					elements_ -= longest_elements.second.size();
-					length_limit_ = longest_elements.first;
-					data_.erase(longest_elements.first);
-				}
 			}
 			std::map<uint16_t, std::vector<id_type>> &get()
 			{
@@ -264,11 +252,11 @@ namespace fuzzy
 		};
 
 		std::unordered_map<ngram_token, ngram_bucket> inverted_index_;
-		std::vector<entry<T>> data_;
+		std::vector<db_entry<T>> data_;
 
 		id_type id_counter_ = 0;
 
-		virtual void add(std::string_view name, T meta, id_type id)
+		virtual void add(std::string name, T&& meta, id_type id)
 		{
 			if (name.empty())
 			{
@@ -281,21 +269,23 @@ namespace fuzzy
 				inverted_index_[ngram].add(id, name.length());
 			}
 			data_.resize(id + 1);
-			data_[id] = entry<T>{std::string(name), meta};
+			data_[id].name = std::move(name);
+			data_[id].meta = meta;
 		}
 
 	public:
 		void add(std::string_view name, T meta)
 		{
-			add(name, meta, id_counter_++);
+			add(std::string(name), std::move(meta), id_counter_++);
 		}
 		void add(const char *name, T meta)
 		{
-			add(std::string_view(name), meta, id_counter_++);
+			add(std::string(name), std::move(meta), id_counter_++);
 		}
 
-		virtual results<T> fuzzy_search(std::string query)
+		virtual results<T> fuzzy_search(const std::string& query)
 		{
+			// for an empty query, return an empty result
 			if (query.empty())
 				return results<T>();
 
@@ -309,27 +299,30 @@ namespace fuzzy
 				}
 			}
 
+			// build list of word ids that share an ngram
 			std::unordered_set<id_type> potential_matches;
 			for (ngram_bucket *ngram_bucket : ngram_buckets)
 			{
-				for (const auto &length_bucket : ngram_bucket->get())
+				for (const auto& [length, id_list] : ngram_bucket->get())
 				{
-					for (id_type id : length_bucket.second)
+					for (id_type id : id_list)
 					{
 						potential_matches.insert(id);
 					}
 				}
 			}
 
-			results<T> res;
-			for (auto id : potential_matches)
+			results<T> result_list;
+			for (id_type id : potential_matches)
 			{
-				if (to_lower(query[0]) == to_lower(data_[id].name[0]))
+				// to speed things up, ignore words that dont start with the same letter
+				if (to_lower(query[0]) != to_lower(data_[id].name[0]))
 				{
-					res.add(data_[id], osa_distance(query, data_[id].name));
+					continue;
 				}
+				result_list.add(&data_[id], osa_distance(query, data_[id].name));
 			}
-			return res;
+			return result_list;
 		}
 	};
 
@@ -339,16 +332,17 @@ namespace fuzzy
 	protected:
 		bool ready_ = false;
 
-		void add(std::string_view name, T meta, id_type id) override
+		void add(std::string name, T&& meta, id_type id) override
 		{
-			assert(!ready_ || !"Inserting into a sorted database rebuilds everything.");
+			assert(!ready_ || !"Inserting into a sorted database rebuilds everything, so dont do it.");
 			if (name.empty())
 			{
 				return;
 			}
 			ready_ = false;
 			database<T>::data_.resize(id + 1);
-			database<T>::data_[id] = entry<T>{std::string(name), meta};
+			database<T>::data_[id].name = std::move(name);
+			database<T>::data_[id].meta = meta;
 		}
 
 	public:
@@ -359,23 +353,24 @@ namespace fuzzy
 			// sort data
 			std::sort(
 				database<T>::data_.begin(), database<T>::data_.end(),
-				[](const entry<T> &a, const entry<T> &b)
+				[](const db_entry<T> &a, const db_entry<T> &b)
 				{ return case_insensitive_compare(a.name, b.name); });
 
 			// build inverted index
+			database<T>::inverted_index_.clear();
 			for (size_t id = 0; id < database<T>::data_.size(); id++)
 			{
-				const auto &entry = database<T>::data_[id];
+				const db_entry<T> &entry = database<T>::data_[id];
 				for (size_t i = 0; i + 1 < entry.name.length(); i++)
 				{
-					const auto ngram = make_token(entry.name[i], entry.name[i + 1]);
+					const ngram_token ngram = make_token(entry.name[i], entry.name[i + 1]);
 					database<T>::inverted_index_[ngram].add(id, entry.name.length());
 				}
 			}
 			ready_ = true;
 		}
 
-		results<T> exact_search(std::string query)
+		results<T> exact_search(const std::string& query)
 		{
 			if (!ready_)
 			{
@@ -383,8 +378,8 @@ namespace fuzzy
 			}
 			results<T> results;
 			auto range = std::ranges::equal_range(
-				database<T>::data_, entry<T>{query, T{}},
-				[](const entry<T> &a, const entry<T> &b)
+				database<T>::data_, db_entry<T>{query, T{}},
+				[](const db_entry<T> &a, const db_entry<T> &b)
 				{ return case_insensitive_compare(a.name, b.name); });
 			for (auto &element : range)
 			{
@@ -392,7 +387,7 @@ namespace fuzzy
 			}
 			return results;
 		}
-		results<T> completion_search(std::string query)
+		results<T> completion_search(const std::string& query)
 		{
 			if (!ready_)
 			{
@@ -400,8 +395,8 @@ namespace fuzzy
 			}
 			results<T> results;
 			auto range = std::ranges::equal_range(
-				database<T>::data_, entry<T>{query, T{}},
-				[truncation_length = query.size()](const entry<T> &a, const entry<T> &b)
+				database<T>::data_, db_entry<T>{query, T{}},
+				[truncation_length = query.size()](const db_entry<T> &a, const db_entry<T> &b)
 				{
 					return case_insensitive_compare(
 						std::string_view(a.name.c_str(), std::min(a.name.size(), truncation_length)),
@@ -414,7 +409,7 @@ namespace fuzzy
 			return results;
 		}
 
-		results<T> fuzzy_search(std::string query) override
+		results<T> fuzzy_search(const std::string& query) override
 		{
 			if (!ready_)
 			{
