@@ -203,7 +203,7 @@ namespace fuzzy
 
 		std::vector<result<T>> best()
 		{
-			return results_.begin()->second;
+			return empty() ? std::vector<result<T>>{} : results_.begin()->second;
 		}
 
 		std::vector<result<T>> extract(uint32_t max_count = UINT32_MAX, int max_distance = INT_MAX)
