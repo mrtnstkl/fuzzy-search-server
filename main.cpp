@@ -79,6 +79,8 @@ int main(int argc, char const *argv[])
 
 	fuzzy::sorted_database<std::string> database;
 	server.Get("/fuzzy", fuzzy_handler(database));
+	server.Get("/exact", exact_handler(database));
+	server.Get("/complete", completion_handler(database));
 
 	initialize_database(database, argv[1]);
 	if (quit)
