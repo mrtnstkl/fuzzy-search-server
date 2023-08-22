@@ -9,6 +9,7 @@
 #include "handlers.h"
 
 int port = 8080;
+std::atomic_bool quit = false;
 
 httplib::Server server;
 
@@ -16,7 +17,8 @@ void signal_handler(int signal)
 {
 	if (signal == SIGINT)
 	{
-		std::cout << "SIGINT received\nstopping server" << std::endl;
+		std::cout << "SIGINT received\nstopping" << std::endl;
+		quit = true;
 		server.stop();
 	}
 }
@@ -34,6 +36,10 @@ void initialize_database(fuzzy::sorted_database<std::string> &database, const ch
 	}
 	while (std::getline(input, line), !line.empty() || input.good())
 	{
+		if (quit)
+		{
+			return;
+		}
 		try
 		{
 			auto json = nlohmann::json::parse(line);
@@ -72,9 +78,13 @@ int main(int argc, char const *argv[])
 	}
 
 	fuzzy::sorted_database<std::string> database;
-	initialize_database(database, argv[1]);
-	
 	server.Get("/fuzzy", fuzzy_handler(database));
+
+	initialize_database(database, argv[1]);
+	if (quit)
+	{
+		return 0;
+	}
 
 	std::cout << "\nstarting server on port " << port << std::endl;
 	if (!server.listen("0.0.0.0", port))
