@@ -381,9 +381,9 @@ namespace fuzzy
 				database<T>::data_, db_entry<T>{query, T{}},
 				[](const db_entry<T> &a, const db_entry<T> &b)
 				{ return case_insensitive_compare(a.name, b.name); });
-			for (auto &element : range)
+			for (fuzzy::db_entry<T> &element : range)
 			{
-				results.add(element, 0);
+				results.add(&element, 0);
 			}
 			return results;
 		}
@@ -402,9 +402,9 @@ namespace fuzzy
 						std::string_view(a.name.c_str(), std::min(a.name.size(), truncation_length)),
 						std::string_view(b.name.c_str(), std::min(b.name.size(), truncation_length)));
 				});
-			for (auto &element : range)
+			for (fuzzy::db_entry<T> &element : range)
 			{
-				results.add(element, 0);
+				results.add(&element, 0);
 			}
 			return results;
 		}
