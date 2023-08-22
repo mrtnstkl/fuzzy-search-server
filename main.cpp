@@ -5,6 +5,8 @@
 #include "json.hpp"
 
 #include "fuzzy.hpp"
+#include "util.h"
+#include "handlers.h"
 
 int port = 8080;
 
@@ -19,83 +21,9 @@ void signal_handler(int signal)
 	}
 }
 
-template <typename T>
-std::string process_results(std::vector<fuzzy::result<T>> results, bool as_list = false)
+void initialize_database(fuzzy::sorted_database<std::string> &database, const char *dataset_path)
 {
-	std::stringstream strstream;
-	if (!as_list)
-	{
-		assert(!results.empty());
-		strstream << results[0].element->meta;
-		return strstream.str();
-	}
-
-	if (results.empty())
-	{
-		return "[]";
-	}
-
-	strstream << "[\n";
-	for (size_t i = 0; i + 1 < results.size(); i++)
-	{
-		strstream << "\t" << results[i].element->meta << ",\n";
-	}
-	strstream << "\t" << results.back().element->meta << "\n]";
-	return strstream.str();
-}
-
-class timer
-{
-	std::chrono::steady_clock::time_point start_, stop_;
-	bool running_;
-
-public:
-	timer()
-	{
-		reset();
-	}
-	void reset()
-	{
-		start_ = std::chrono::steady_clock::now();
-		running_ = true;
-	}
-	void stop()
-	{
-		running_ = false;
-		stop_ = std::chrono::steady_clock::now();
-	}
-	template <typename Duration = std::chrono::milliseconds>
-	uint64_t get()
-	{
-		return std::chrono::duration_cast<Duration>((running_ ? std::chrono::steady_clock::now() : stop_) - start_).count();
-	}
-	template <typename Duration = std::chrono::milliseconds>
-	uint64_t get_and_reset()
-	{
-		auto v = get<Duration>();
-		reset();
-		return v;
-	}
-};
-
-int main(int argc, char const *argv[])
-{
-	std::signal(SIGINT, signal_handler);
-
-	if (argc < 2 || argc > 3)
-	{
-		std::cerr << "Usage: " << argv[0] << " INFILE [PORT]\n";
-		return 1;
-	}
-
-	if (argc == 3)
-	{
-		port = atoi(argv[2]);
-	}
-
-	fuzzy::sorted_database<std::string> database;
-
-	std::ifstream input(argv[1]);
+	std::ifstream input(dataset_path);
 	std::string line;
 	timer init_timer;
 	unsigned line_count = 0;
@@ -126,35 +54,27 @@ int main(int argc, char const *argv[])
 	std::cout << "preparing database " << std::flush;
 	database.build();
 	std::cout << "took " << init_timer.get_and_reset() << "ms" << std::endl;
+}
 
-	server.Get(
-		"/fuzzy",
-		[&](const httplib::Request &req, httplib::Response &res)
-		{
-			if (!req.has_param("q"))
-			{
-				res.status = 400;
-				res.set_content("missing query parameter q", "text/plain");
-				return;
-			}
+int main(int argc, char const *argv[])
+{
+	std::signal(SIGINT, signal_handler);
 
-			auto query_string = req.get_param_value("q");
-			bool respond_with_list = req.has_param("list") && req.get_param_value("list") == "yes";
+	if (argc < 2 || argc > 3)
+	{
+		std::cerr << "Usage: " << argv[0] << " INFILE [PORT]\n";
+		return 1;
+	}
 
-			timer query_timer;
-			auto query_result = database.fuzzy_search(query_string);
-			std::cout
-				<< "fuzzy-searched " << query_string << " in " << query_timer.get() << "ms: "
-				<< (query_result.empty() ? "not found" : query_result.best()[0].element->name) << std::endl;
+	if (argc == 3)
+	{
+		port = atoi(argv[2]);
+	}
 
-			if (!respond_with_list && query_result.empty())
-			{
-				res.status = 404;
-				res.set_content("no matches", "text/plain");
-				return;
-			}
-			res.set_content(process_results(query_result.best(), respond_with_list), "application/json");
-		});
+	fuzzy::sorted_database<std::string> database;
+	initialize_database(database, argv[1]);
+	
+	server.Get("/fuzzy", fuzzy_handler(database));
 
 	std::cout << "\nstarting server on port " << port << std::endl;
 	if (!server.listen("0.0.0.0", port))
