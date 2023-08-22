@@ -9,10 +9,10 @@ Uses [cpp-httplib](https://github.com/yhirose/cpp-httplib) and [nlohmann/json](h
 ## Usage
 
 ```bash
-./fuzzy-search-server INFILE [PORT]
+./fuzzy-search-server DATASET... [-p PORT]
 ```
 
-- `INFILE`: The path to the text file containing the database entries. Each line should be a separate JSON object with at least a "name" field.
+- `DATASET`: The paths to the text files containing the data entries. Each line should be a separate JSON object with at least a "name" field.
 - `PORT` (Optional): The port number on which the server should listen. Defaults to `8080` if not provided.
 
 ## API Endpoints

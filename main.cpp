@@ -8,6 +8,9 @@
 #include "util.h"
 #include "handlers.h"
 
+#define RETURN_IF_QUIT(x) if (quit) return x 
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT]" << std::endl
+
 int port = 8080;
 std::atomic_bool quit = false;
 
@@ -23,23 +26,23 @@ void signal_handler(int signal)
 	}
 }
 
-void initialize_database(fuzzy::sorted_database<std::string> &database, const char *dataset_path)
+bool populate_database(fuzzy::sorted_database<std::string> &database, const char *dataset_path)
 {
 	std::ifstream input(dataset_path);
 	std::string line;
-	timer init_timer;
+	timer parse_timer;
 	unsigned line_count = 0;
 	unsigned element_count = 0;
-	if (input.good())
+	if (!input.is_open())
 	{
-		std::cout << "parsing dataset" << std::endl;
+		std::cerr << "could not open dataset \"" << dataset_path << '"' << std::endl;
+		return false;
 	}
+	std::cout << "parsing dataset \"" << dataset_path << '"' << std::endl;
+
 	while (std::getline(input, line), !line.empty() || input.good())
 	{
-		if (quit)
-		{
-			return;
-		}
+		RETURN_IF_QUIT(false);
 		try
 		{
 			auto json = nlohmann::json::parse(line);
@@ -56,37 +59,72 @@ void initialize_database(fuzzy::sorted_database<std::string> &database, const ch
 		++line_count;
 	}
 	input.close();
-	std::cout << "parsed " << element_count << " entries in " << init_timer.get_and_reset() << "ms" << std::endl;
-	std::cout << "preparing database " << std::flush;
-	database.build();
-	std::cout << "took " << init_timer.get_and_reset() << "ms" << std::endl;
+	std::cout << "parsed " << element_count << " entries in " << parse_timer.get() << "ms" << std::endl;
+	return true;
 }
 
 int main(int argc, char const *argv[])
 {
-	std::signal(SIGINT, signal_handler);
-
-	if (argc < 2 || argc > 3)
+	if (argc < 2)
 	{
-		std::cerr << "Usage: " << argv[0] << " INFILE [PORT]\n";
+		PRINT_USAGE(argv[0]);
 		return 1;
 	}
 
-	if (argc == 3)
-	{
-		port = atoi(argv[2]);
-	}
-
 	fuzzy::sorted_database<std::string> database;
+	timer init_timer;
+
+	std::signal(SIGINT, signal_handler);
 	server.Get("/fuzzy", fuzzy_handler(database));
 	server.Get("/exact", exact_handler(database));
 	server.Get("/complete", completion_handler(database));
 
-	initialize_database(database, argv[1]);
-	if (quit)
+	// process args
+	std::vector<const char*> dataset_paths;
+	for (int i = 1; i < argc; i++)
 	{
-		return 0;
+		if (strcmp(argv[i], "-p") != 0)
+		{
+			dataset_paths.push_back(argv[i]);
+			continue;
+		}
+		if (i + 1 >= argc)
+		{
+			std::cerr << "Missing parameter for -p" << std::endl;
+			PRINT_USAGE(argv[0]);
+			return 1;
+		}
+		if (atoi(argv[i + 1]) == 0)
+		{
+			std::cerr << "Invalid port \"" << argv[i + 1] << '"' << std::endl;
+			PRINT_USAGE(argv[0]);
+			return 1;
+		}
+		port = atoi(argv[i + 1]);
+		++i;
 	}
+	if (dataset_paths.empty())
+	{
+		PRINT_USAGE(argv[0]);
+		return 1;
+	}
+
+	int dataset_count = 0;
+	for (const char* path : dataset_paths)
+	{
+		dataset_count += populate_database(database, path) ? 1 : 0;
+		RETURN_IF_QUIT(0);
+	}
+
+	std::cout << "processed " << dataset_count << "/" << dataset_paths.size() << " datasets" << std::endl;
+
+	std::cout << "preparing database" << std::endl;
+	timer db_init_timer;
+	database.build();
+	RETURN_IF_QUIT(0);
+	std::cout << "database prepared in " << db_init_timer.get() << "ms" << std::endl;
+
+	std::cout << "\ninitialization took " << init_timer.get() << "ms" << std::endl;
 
 	std::cout << "\nstarting server on port " << port << std::endl;
 	if (!server.listen("0.0.0.0", port))
