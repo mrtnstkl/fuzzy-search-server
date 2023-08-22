@@ -59,7 +59,7 @@ For a JSON file `parks.json` containing:
 
 Run:
 ```bash
-./fuzzy-search-server parks.json 1234
+./fuzzy-search-server parks.json -p 1234
 ```
 
 Query:
