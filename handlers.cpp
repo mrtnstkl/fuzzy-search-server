@@ -1,7 +1,7 @@
 #include "handlers.h"
 
 template <typename T>
-std::string process_results(std::vector<fuzzy::result<T>> results, bool as_list = false)
+std::string process_results(const std::vector<fuzzy::result<T>>& results, bool as_list = false)
 {
 	std::stringstream strstream;
 	if (!as_list)
