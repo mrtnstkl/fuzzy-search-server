@@ -37,7 +37,11 @@ httplib::Server::Handler fuzzy_handler(fuzzy::sorted_database<std::string> &data
 		}
 		const auto query_string = req.get_param_value("q");
 		timer query_timer;
-		auto query_result = database.fuzzy_search(query_string);
+		auto query_result = database.exact_search(query_string, 0, 1);
+		if (query_result.empty())
+		{
+			query_result = database.fuzzy_search(query_string);
+		}
 		std::cout
 			<< "fuzzy-searched " << query_string << " in " << query_timer.get() << "ms: "
 			<< (query_result.empty() ? "not found" : query_result.best()[0].element->name) << std::endl;
@@ -63,7 +67,11 @@ httplib::Server::Handler fuzzy_list_handler(fuzzy::sorted_database<std::string> 
 		}
 		const auto query_string = req.get_param_value("q");
 		timer query_timer;
-		auto query_result = database.fuzzy_search(query_string);
+		auto query_result = database.exact_search(query_string);
+		if (query_result.empty())
+		{
+			query_result = database.fuzzy_search(query_string);
+		}
 		std::cout
 			<< "fuzzy-searched " << query_string << " in " << query_timer.get() << "ms: "
 			<< (query_result.empty() ? "not found" : query_result.best()[0].element->name) << std::endl;
