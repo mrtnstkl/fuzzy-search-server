@@ -76,8 +76,11 @@ int main(int argc, char const *argv[])
 
 	std::signal(SIGINT, signal_handler);
 	server.Get("/fuzzy", fuzzy_handler(database));
+	server.Get("/fuzzy/list", fuzzy_list_handler(database));
 	server.Get("/exact", exact_handler(database));
+	server.Get("/exact/list", exact_list_handler(database));
 	server.Get("/complete", completion_handler(database));
+	server.Get("/complete/list", completion_list_handler(database));
 
 	// process args
 	std::vector<const char*> dataset_paths;
