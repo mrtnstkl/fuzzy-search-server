@@ -9,11 +9,12 @@ Uses [cpp-httplib](https://github.com/yhirose/cpp-httplib) and [nlohmann/json](h
 ## Usage
 
 ```bash
-./fuzzy-search-server DATASET... [-p PORT]
+./fuzzy-search-server DATASET... [-p PORT] [-bi | -tri | -tetra]
 ```
 
 - `DATASET`: The paths to the text files containing the data entries. Each line should be a separate JSON object with at least a "name" field.
-- `PORT` (Optional): The port number on which the server should listen. Defaults to `8080` if not provided.
+- `PORT` (optional): The port number on which the server should listen. Defaults to `8080`.
+- `-bi | -tri | -tetra` (optional): The n-gram-size used by the fuzzy search. Defaults to `-bi`. Higher sizes can drastically improve speed, but might miss out on some more distant matches.
 
 ## API
 

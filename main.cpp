@@ -9,7 +9,7 @@
 #include "handlers.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
-#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT]" << std::endl
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-bi | -tri | -tetra]" << std::endl
 
 int port = 8080;
 std::atomic_bool quit = false;
@@ -71,7 +71,55 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 
-	fuzzy::sorted_database<std::string> database;
+	// process args
+	int ngram_size = 2;
+	std::vector<const char*> dataset_paths;
+	for (int i = 1; i < argc; i++)
+	{
+		const std::string arg = argv[i];
+		if (arg == "-bi")
+		{
+			ngram_size = 2;
+			continue;
+		}
+		if (arg == "-tri")
+		{
+			ngram_size = 3;
+			continue;
+		}
+		if (arg == "-tetra")
+		{
+			ngram_size = 4;
+			continue;
+		}
+		if (arg == "-p")
+		{
+			if (i + 1 >= argc)
+			{
+				std::cerr << "Missing parameter for -p" << std::endl;
+				PRINT_USAGE(argv[0]);
+				return 1;
+			}
+			if (atoi(argv[i + 1]) == 0)
+			{
+				std::cerr << "Invalid port \"" << argv[i + 1] << '"' << std::endl;
+				PRINT_USAGE(argv[0]);
+				return 1;
+			}
+			port = atoi(argv[i + 1]);
+			++i;
+			continue;
+		}
+		dataset_paths.push_back(argv[i]);
+
+	}
+	if (dataset_paths.empty())
+	{
+		PRINT_USAGE(argv[0]);
+		return 1;
+	}
+
+	fuzzy::sorted_database<std::string> database(ngram_size);
 	timer init_timer;
 
 	std::signal(SIGINT, signal_handler);
@@ -81,36 +129,6 @@ int main(int argc, char const *argv[])
 	server.Get("/exact/list", exact_list_handler(database));
 	server.Get("/complete", completion_handler(database));
 	server.Get("/complete/list", completion_list_handler(database));
-
-	// process args
-	std::vector<const char*> dataset_paths;
-	for (int i = 1; i < argc; i++)
-	{
-		if (strcmp(argv[i], "-p") != 0)
-		{
-			dataset_paths.push_back(argv[i]);
-			continue;
-		}
-		if (i + 1 >= argc)
-		{
-			std::cerr << "Missing parameter for -p" << std::endl;
-			PRINT_USAGE(argv[0]);
-			return 1;
-		}
-		if (atoi(argv[i + 1]) == 0)
-		{
-			std::cerr << "Invalid port \"" << argv[i + 1] << '"' << std::endl;
-			PRINT_USAGE(argv[0]);
-			return 1;
-		}
-		port = atoi(argv[i + 1]);
-		++i;
-	}
-	if (dataset_paths.empty())
-	{
-		PRINT_USAGE(argv[0]);
-		return 1;
-	}
 
 	int dataset_count = 0;
 	for (const char* path : dataset_paths)
