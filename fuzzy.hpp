@@ -265,7 +265,6 @@ namespace fuzzy
 
 		const struct {
 			const int ngram_size;
-			size_t result_limit;
 			bool first_letter_opt;
 		} options_;
 
@@ -300,8 +299,8 @@ namespace fuzzy
 		}
 
 	public:
-		database(int ngram_size = 2, size_t result_limit = 0, bool first_letter_opt = true)
-			: options_(ngram_size, result_limit, first_letter_opt)
+		database(int ngram_size = 2, bool first_letter_opt = true)
+			: options_(ngram_size, first_letter_opt)
 		{
 		}
 
@@ -371,10 +370,6 @@ namespace fuzzy
 					continue;
 				}
 				result_list.add(&data_[id], osa_distance(query, data_[id].name));
-				if (result_list.size() >= options_.result_limit)
-				{
-					break;
-				}
 			}
 			return result_list;
 		}
@@ -385,6 +380,11 @@ namespace fuzzy
 	{
 	protected:
 		bool ready_ = false;
+
+		const struct {
+			size_t result_limit;
+		} options_;
+
 
 		void add(std::string name, T&& meta, id_type id) override
 		{
@@ -406,7 +406,7 @@ namespace fuzzy
 				page_size = SIZE_MAX;
 				page_number = 0;
 			}
-			page_size = std::min<size_t>(page_size, database<T>::options_.result_limit);
+			page_size = std::min<size_t>(page_size, options_.result_limit);
 
 			results<T> results;
 			size_t start_index = page_number * page_size;
@@ -428,7 +428,7 @@ namespace fuzzy
 		using database<T>::add;
 
 		sorted_database(int ngram_size = 2, size_t result_limit = 100, bool first_letter_opt = true)
-			: database<T>(ngram_size, result_limit, first_letter_opt)
+			: database<T>(ngram_size, first_letter_opt), options_(result_limit)
 		{}
 
 		void build()
