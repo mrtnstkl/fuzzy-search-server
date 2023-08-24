@@ -189,16 +189,23 @@ namespace fuzzy
 	class results
 	{
 		std::map<int, std::vector<result<T>>> results_;
+		size_t size_;
 
 	public:
 		void add(db_entry_reference<T> element, int distance)
 		{
 			results_[distance].emplace_back(element, distance);
+			++size_;
 		}
 
 		bool empty() const
 		{
 			return results_.empty();
+		}
+
+		size_t size() const
+		{
+			return size_;
 		}
 
 		std::vector<result<T>> best()
@@ -258,7 +265,7 @@ namespace fuzzy
 
 		const struct {
 			const int ngram_size;
-			int result_limit; // unused
+			size_t result_limit;
 			bool first_letter_opt;
 		} options_;
 
@@ -293,7 +300,7 @@ namespace fuzzy
 		}
 
 	public:
-		database(int ngram_size = 2, int result_limit = 0, bool first_letter_opt = true)
+		database(int ngram_size = 2, size_t result_limit = 0, bool first_letter_opt = true)
 			: options_(ngram_size, result_limit, first_letter_opt)
 		{
 		}
@@ -364,6 +371,10 @@ namespace fuzzy
 					continue;
 				}
 				result_list.add(&data_[id], osa_distance(query, data_[id].name));
+				if (result_list.size() >= options_.result_limit)
+				{
+					break;
+				}
 			}
 			return result_list;
 		}
@@ -388,10 +399,35 @@ namespace fuzzy
 			database<T>::data_[id].meta = meta;
 		}
 
+		results<T> extract_page(std::pair<typename std::vector<db_entry<T>>::iterator, typename std::vector<db_entry<T>>::iterator> range, size_t page_number, size_t page_size)
+		{
+			if (page_size == 0)
+			{
+				page_size = SIZE_MAX;
+				page_number = 0;
+			}
+			page_size = std::min<size_t>(page_size, database<T>::options_.result_limit);
+
+			results<T> results;
+			size_t start_index = page_number * page_size;
+			size_t end_index = start_index + page_size;
+			if (size_t(range.second - range.first) < start_index)
+			{
+				return results;
+			}
+			auto start_iter = range.first + start_index;
+			auto end_iter = (size_t(range.second - range.first) < end_index) ? range.second : range.first + end_index;
+			for (auto iter = start_iter; iter != end_iter; ++iter)
+			{
+				results.add(&(*iter), 0);
+			}
+			return results;
+		}
+
 	public:
 		using database<T>::add;
 
-		sorted_database(int ngram_size = 2, int result_limit = 100, bool first_letter_opt = true)
+		sorted_database(int ngram_size = 2, size_t result_limit = 100, bool first_letter_opt = true)
 			: database<T>(ngram_size, result_limit, first_letter_opt)
 		{}
 
@@ -429,24 +465,20 @@ namespace fuzzy
 			ready_ = true;
 		}
 
-		results<T> exact_search(const std::string& query)
+		results<T> exact_search(const std::string& query, size_t page_number = 0, size_t page_size = 0)
 		{
 			if (!ready_)
 			{
 				build();
 			}
-			results<T> results;
 			auto range = std::ranges::equal_range(
 				database<T>::data_, db_entry<T>{query, T{}},
 				[](const db_entry<T> &a, const db_entry<T> &b)
 				{ return case_insensitive_compare(a.name, b.name); });
-			for (fuzzy::db_entry<T> &element : range)
-			{
-				results.add(&element, 0);
-			}
-			return results;
+			return extract_page(range, page_number, page_size);
 		}
-		results<T> completion_search(const std::string& query)
+
+		results<T> completion_search(const std::string& query, size_t page_number = 0, size_t page_size = 0)
 		{
 			if (!ready_)
 			{
@@ -461,11 +493,7 @@ namespace fuzzy
 						std::string_view(a.name.c_str(), std::min(a.name.size(), truncation_length)),
 						std::string_view(b.name.c_str(), std::min(b.name.size(), truncation_length)));
 				});
-			for (fuzzy::db_entry<T> &element : range)
-			{
-				results.add(&element, 0);
-			}
-			return results;
+			return extract_page(range, page_number, page_size);
 		}
 
 		results<T> fuzzy_search(const std::string& query) override

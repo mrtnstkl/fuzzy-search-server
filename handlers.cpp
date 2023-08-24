@@ -68,9 +68,11 @@ httplib::Server::Handler exact_handler(fuzzy::sorted_database<std::string> &data
 
 		auto query_string = req.get_param_value("q");
 		bool respond_with_list = req.has_param("list") && req.get_param_value("list") == "yes";
+		int page_number = req.has_param("page") ? std::stoi(req.get_param_value("page")) : 0;
+		int page_size = req.has_param("count") ? std::stoi(req.get_param_value("count")) : 10;
 
 		timer query_timer;
-		auto query_result = database.exact_search(query_string);
+		auto query_result = database.exact_search(query_string, std::max(0, page_number), std::max(0, page_size));
 		std::cout << "exact-searched " << query_string << " in " << query_timer.get() << "ms" << std::endl;
 
 		if (!respond_with_list && query_result.empty())
@@ -96,9 +98,11 @@ httplib::Server::Handler completion_handler(fuzzy::sorted_database<std::string> 
 
 		auto query_string = req.get_param_value("q");
 		bool respond_with_list = !(req.has_param("list") && req.get_param_value("list") == "no");
+		int page_number = req.has_param("page") ? std::stoi(req.get_param_value("page")) : 0;
+		int page_size = req.has_param("count") ? std::stoi(req.get_param_value("count")) : 10;
 
 		timer query_timer;
-		auto query_result = database.completion_search(query_string);
+		auto query_result = database.completion_search(query_string, std::max(0, page_number), std::max(0, page_size));
 		std::cout << "completion-searched " << query_string << " in " << query_timer.get() << "ms" << std::endl;
 
 		if (!respond_with_list && query_result.empty())
