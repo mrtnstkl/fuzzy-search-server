@@ -256,6 +256,12 @@ namespace fuzzy
 
 		id_type id_counter_ = 0;
 
+		const struct {
+			const int ngram_size;
+			int result_limit; // unused
+			bool first_letter_opt;
+		} options_;
+
 		virtual void add(std::string name, T&& meta, id_type id)
 		{
 			if (name.empty())
@@ -263,17 +269,35 @@ namespace fuzzy
 				return;
 			}
 
-			for (size_t i = 0; i + 1 < name.length(); i++)
+			switch (options_.ngram_size)
 			{
-				const auto ngram = make_token(name[i], name[i + 1]);
-				inverted_index_[ngram].add(id, name.length());
+			case 2:
+				for (size_t i = 0; i + 1 < name.length(); i++)
+					inverted_index_[make_token(name[i], name[i + 1])].add(id, name.length());
+				break;
+			case 3:
+				for (size_t i = 0; i + 2 < name.length(); i++)
+					inverted_index_[make_token(name[i], name[i + 1], name[i + 2])].add(id, name.length());
+				break;
+			case 4:
+				for (size_t i = 0; i + 3 < name.length(); i++)
+					inverted_index_[make_token(name[i], name[i + 1], name[i + 2], name[i + 3])].add(id, name.length());
+				break;
+			default:
+				abort();
 			}
+			
 			data_.resize(id + 1);
 			data_[id].name = std::move(name);
 			data_[id].meta = meta;
 		}
 
 	public:
+		database(int ngram_size = 2, int result_limit = 0, bool first_letter_opt = true)
+			: options_(ngram_size, result_limit, first_letter_opt)
+		{
+		}
+
 		void add(std::string_view name, T meta)
 		{
 			add(std::string(name), std::move(meta), id_counter_++);
@@ -289,10 +313,29 @@ namespace fuzzy
 			if (query.empty())
 				return results<T>();
 
-			std::vector<ngram_bucket *> ngram_buckets;
-			for (size_t i = 0; i + 1 < query.length(); i++)
+			std::vector<ngram_token> query_tokens;
+			switch (options_.ngram_size)
 			{
-				auto bucket = inverted_index_.find(make_token(query[i], query[i + 1]));
+			case 2:
+				for (size_t i = 0; i + 1 < query.length(); i++)
+					query_tokens.push_back(make_token(query[i], query[i + 1]));
+				break;
+			case 3:
+				for (size_t i = 0; i + 2 < query.length(); i++)
+					query_tokens.push_back(make_token(query[i], query[i + 1], query[i + 2]));
+				break;
+			case 4:
+				for (size_t i = 0; i + 3 < query.length(); i++)
+					query_tokens.push_back(make_token(query[i], query[i + 1], query[i + 2], query[i + 3]));
+				break;
+			default:
+				abort();
+			}
+
+			std::vector<ngram_bucket *> ngram_buckets;
+			for (auto token : query_tokens)
+			{
+				auto bucket = inverted_index_.find(token);
 				if (bucket != inverted_index_.end())
 				{
 					ngram_buckets.push_back(&bucket->second);
@@ -316,7 +359,7 @@ namespace fuzzy
 			for (id_type id : potential_matches)
 			{
 				// to speed things up, ignore words that dont start with the same letter
-				if (to_lower(query[0]) != to_lower(data_[id].name[0]))
+				if (options_.first_letter_opt && to_lower(query[0]) != to_lower(data_[id].name[0]))
 				{
 					continue;
 				}
@@ -348,6 +391,10 @@ namespace fuzzy
 	public:
 		using database<T>::add;
 
+		sorted_database(int ngram_size = 2, int result_limit = 100, bool first_letter_opt = true)
+			: database<T>(ngram_size, result_limit, first_letter_opt)
+		{}
+
 		void build()
 		{
 			// sort data
@@ -361,10 +408,22 @@ namespace fuzzy
 			for (size_t id = 0; id < database<T>::data_.size(); id++)
 			{
 				const db_entry<T> &entry = database<T>::data_[id];
-				for (size_t i = 0; i + 1 < entry.name.length(); i++)
+				switch (database<T>::options_.ngram_size)
 				{
-					const ngram_token ngram = make_token(entry.name[i], entry.name[i + 1]);
-					database<T>::inverted_index_[ngram].add(id, entry.name.length());
+				case 2:
+					for (size_t i = 0; i + 1 < entry.name.length(); i++)
+						database<T>::inverted_index_[make_token(entry.name[i], entry.name[i + 1])].add(id, entry.name.length());
+					break;
+				case 3:
+					for (size_t i = 0; i + 2 < entry.name.length(); i++)
+						database<T>::inverted_index_[make_token(entry.name[i], entry.name[i + 1], entry.name[i + 2])].add(id, entry.name.length());
+					break;
+				case 4:
+					for (size_t i = 0; i + 3 < entry.name.length(); i++)
+						database<T>::inverted_index_[make_token(entry.name[i], entry.name[i + 1], entry.name[i + 2], entry.name[i + 3])].add(id, entry.name.length());
+					break;
+				default:
+					abort();
 				}
 			}
 			ready_ = true;
