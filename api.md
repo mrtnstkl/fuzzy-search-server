@@ -11,7 +11,7 @@ Gets one of the best matches.
 **Parameters:**
 - `q`: The search term.
 
-### `GET /list/fuzzy`
+### `GET /fuzzy/list`
 
 Gets a list of best matches.
 
@@ -32,7 +32,7 @@ Gets one of the exact matches.
 **Parameters:**
 - `q`: The search term.
 
-### `GET /list/exact`
+### `GET /exact/list`
 
 Gets a paged list of exact matches.
 
@@ -55,7 +55,7 @@ Gets the lexicographically smallest entry that starts with the search term.
 **Parameters:**
 - `q`: The search term.
 
-### `GET /list/complete`
+### `GET /complete/list`
 
 Gets a paged, lexicographically sorted list of entries that start with the search term.
 
