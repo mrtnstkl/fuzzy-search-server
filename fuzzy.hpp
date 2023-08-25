@@ -15,9 +15,11 @@ namespace fuzzy
 	using ngram_token = uint32_t;
 	using id_type = uint32_t;
 
+	constexpr size_t bigram_limit = 6;
+	constexpr size_t trigram_limit = 12;
+
 	namespace internal
 	{
-
 		inline ngram_token make_token(char c1 = '\0', char c2 = '\0', char c3 = '\0', char c4 = '\0')
 		{
 			return ngram_token(c1) << 0 | ngram_token(c2) << 8 | ngram_token(c3) << 16 | ngram_token(c4) << 24;
@@ -124,8 +126,8 @@ namespace fuzzy
 
 		inline int osa_distance(const std::string &s1, const std::string &s2)
 		{
-			int len_s1 = s1.size();
-			int len_s2 = s2.size();
+			const int len_s1 = s1.size();
+			const int len_s2 = s2.size();
 
 			std::vector<std::vector<int>> dp(len_s1 + 1, std::vector<int>(len_s2 + 1));
 
@@ -155,7 +157,6 @@ namespace fuzzy
 					}
 				}
 			}
-
 			return dp[len_s1][len_s2];
 		}
 
@@ -176,7 +177,6 @@ namespace fuzzy
 	template <typename T>
 	struct result
 	{
-
 		db_entry_reference<T> element;
 		int distance;
 		result(db_entry_reference<T> element, int distance)
@@ -268,31 +268,55 @@ namespace fuzzy
 			bool first_letter_opt;
 		} options_;
 
+		void add_to_index(const std::string& name, id_type id)
+		{
+			switch (options_.ngram_size)
+			{
+			case 2:
+				// bigrams
+				for (size_t i = 0; i + 1 < name.length(); i++)
+					inverted_index_[make_token(name[i], name[i + 1])].add(id, name.length());
+				break;
+			case 3:
+				// trigrams
+				for (size_t i = 0; i + 2 < name.length(); i++)
+					inverted_index_[make_token(name[i], name[i + 1], name[i + 2])].add(id, name.length());
+				// for short words, also do bigrams
+				if (name.length() <= bigram_limit)
+				{
+					for (size_t i = 0; i + 1 < name.length(); i++)
+						inverted_index_[make_token(name[i], name[i + 1])].add(id, name.length());
+				}
+				break;
+			case 4:
+				// tetragrams
+				for (size_t i = 0; i + 3 < name.length(); i++)
+					inverted_index_[make_token(name[i], name[i + 1], name[i + 2], name[i + 3])].add(id, name.length());
+				// for short words, also do trigrams
+				if (name.length() <= trigram_limit)
+				{
+					for (size_t i = 0; i + 2 < name.length(); i++)
+						inverted_index_[make_token(name[i], name[i + 1], name[i + 2])].add(id, name.length());
+				}
+				// ...and bigrams
+				if (name.length() <= bigram_limit)
+				{
+					for (size_t i = 0; i + 1 < name.length(); i++)
+						inverted_index_[make_token(name[i], name[i + 1])].add(id, name.length());
+				}
+				break;
+			default:
+				abort();
+			}
+		}
+
 		virtual void add(std::string name, T&& meta, id_type id)
 		{
 			if (name.empty())
 			{
 				return;
 			}
-
-			switch (options_.ngram_size)
-			{
-			case 2:
-				for (size_t i = 0; i + 1 < name.length(); i++)
-					inverted_index_[make_token(name[i], name[i + 1])].add(id, name.length());
-				break;
-			case 3:
-				for (size_t i = 0; i + 2 < name.length(); i++)
-					inverted_index_[make_token(name[i], name[i + 1], name[i + 2])].add(id, name.length());
-				break;
-			case 4:
-				for (size_t i = 0; i + 3 < name.length(); i++)
-					inverted_index_[make_token(name[i], name[i + 1], name[i + 2], name[i + 3])].add(id, name.length());
-				break;
-			default:
-				abort();
-			}
-			
+			add_to_index(name, id);
 			data_.resize(id + 1);
 			data_[id].name = std::move(name);
 			data_[id].meta = meta;
@@ -323,16 +347,37 @@ namespace fuzzy
 			switch (options_.ngram_size)
 			{
 			case 2:
+				// bigrams
 				for (size_t i = 0; i + 1 < query.length(); i++)
 					query_tokens.push_back(make_token(query[i], query[i + 1]));
 				break;
 			case 3:
+				// trigrams
 				for (size_t i = 0; i + 2 < query.length(); i++)
 					query_tokens.push_back(make_token(query[i], query[i + 1], query[i + 2]));
+				// for short words, also do bigrams
+				if (query.length() <= bigram_limit)
+				{
+					for (size_t i = 0; i + 1 < query.length(); i++)
+						query_tokens.push_back(make_token(query[i], query[i + 1]));
+				}
 				break;
 			case 4:
+				// tetragrams
 				for (size_t i = 0; i + 3 < query.length(); i++)
 					query_tokens.push_back(make_token(query[i], query[i + 1], query[i + 2], query[i + 3]));
+				// for short words, also do trigrams
+				if (query.length() <= trigram_limit)
+				{
+					for (size_t i = 0; i + 2 < query.length(); i++)
+						query_tokens.push_back(make_token(query[i], query[i + 1], query[i + 2]));
+				}
+				// ...and bigrams
+				if (query.length() <= bigram_limit)
+				{
+					for (size_t i = 0; i + 1 < query.length(); i++)
+						query_tokens.push_back(make_token(query[i], query[i + 1]));
+				}
 				break;
 			default:
 				abort();
@@ -443,24 +488,7 @@ namespace fuzzy
 			database<T>::inverted_index_.clear();
 			for (size_t id = 0; id < database<T>::data_.size(); id++)
 			{
-				const db_entry<T> &entry = database<T>::data_[id];
-				switch (database<T>::options_.ngram_size)
-				{
-				case 2:
-					for (size_t i = 0; i + 1 < entry.name.length(); i++)
-						database<T>::inverted_index_[make_token(entry.name[i], entry.name[i + 1])].add(id, entry.name.length());
-					break;
-				case 3:
-					for (size_t i = 0; i + 2 < entry.name.length(); i++)
-						database<T>::inverted_index_[make_token(entry.name[i], entry.name[i + 1], entry.name[i + 2])].add(id, entry.name.length());
-					break;
-				case 4:
-					for (size_t i = 0; i + 3 < entry.name.length(); i++)
-						database<T>::inverted_index_[make_token(entry.name[i], entry.name[i + 1], entry.name[i + 2], entry.name[i + 3])].add(id, entry.name.length());
-					break;
-				default:
-					abort();
-				}
+				database<T>::add_to_index(database<T>::data_[id].name, id);
 			}
 			ready_ = true;
 		}
