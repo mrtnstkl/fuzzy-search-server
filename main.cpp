@@ -32,7 +32,7 @@ struct dataset_entry
 {
 	dataset::element_id element_id;
 	uint16_t dataset_id;
-	dataset_entry(dataset::element_id element_id = 0, uint8_t dataset_id = 0)
+	dataset_entry(dataset::element_id element_id = 0, uint16_t dataset_id = 0)
 		: element_id(element_id), dataset_id(dataset_id)
 	{
 	}
