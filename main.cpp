@@ -7,14 +7,16 @@
 #include "fuzzy.hpp"
 #include "util.h"
 #include "handlers.h"
+#include "dataset.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
-#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-bi | -tri | -tetra]" << std::endl
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-bi | -tri | -tetra] [-disk]" << std::endl
 
 int port = 8080;
 std::atomic_bool quit = false;
 
 httplib::Server server;
+std::vector<std::unique_ptr<dataset>> datasets;
 
 void signal_handler(int signal)
 {
@@ -26,42 +28,21 @@ void signal_handler(int signal)
 	}
 }
 
-bool populate_database(fuzzy::sorted_database<std::string> &database, const char *dataset_path)
+struct dataset_entry
 {
-	std::ifstream input(dataset_path);
-	std::string line;
-	timer parse_timer;
-	unsigned line_count = 0;
-	unsigned element_count = 0;
-	if (!input.is_open())
+	dataset::element_id element_id;
+	uint16_t dataset_id;
+	dataset_entry(dataset::element_id element_id = 0, uint8_t dataset_id = 0)
+		: element_id(element_id), dataset_id(dataset_id)
 	{
-		std::cerr << "could not open dataset \"" << dataset_path << '"' << std::endl;
-		return false;
 	}
-	std::cout << "parsing dataset \"" << dataset_path << '"' << std::endl;
+	friend std::ostream& operator<<(std::ostream& os, const dataset_entry& dse)
+	{
+		os << datasets[dse.dataset_id]->get_element(dse.element_id);
+		return os;
+	}
+};
 
-	while (std::getline(input, line), !line.empty() || input.good())
-	{
-		RETURN_IF_QUIT(false);
-		try
-		{
-			auto json = nlohmann::json::parse(line);
-			database.add(json["name"].template get<std::string>(), line);
-			++element_count;
-		}
-		catch (const std::exception &e)
-		{
-			if (!line.empty())
-			{
-				std::cerr << "error while parsing line " << line_count << ": " << e.what() << std::endl;
-			}
-		}
-		++line_count;
-	}
-	input.close();
-	std::cout << "parsed " << element_count << " entries in " << parse_timer.get() << "ms" << std::endl;
-	return true;
-}
 
 int main(int argc, char const *argv[])
 {
@@ -73,6 +54,7 @@ int main(int argc, char const *argv[])
 
 	// process args
 	int ngram_size = 2;
+	bool keep_elements_in_memory = true;
 	std::vector<const char*> dataset_paths;
 	for (int i = 1; i < argc; i++)
 	{
@@ -90,6 +72,11 @@ int main(int argc, char const *argv[])
 		if (arg == "-tetra")
 		{
 			ngram_size = 4;
+			continue;
+		}
+		if (arg == "-disk")
+		{
+			keep_elements_in_memory = false;
 			continue;
 		}
 		if (arg == "-p")
@@ -119,7 +106,7 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 
-	fuzzy::sorted_database<std::string> database(ngram_size);
+	fuzzy::sorted_database<dataset_entry> database(ngram_size);
 	timer init_timer;
 
 	std::signal(SIGINT, signal_handler);
@@ -130,11 +117,45 @@ int main(int argc, char const *argv[])
 	server.Get("/complete", completion_handler(database));
 	server.Get("/complete/list", completion_list_handler(database));
 
+	// process datasets
 	int dataset_count = 0;
 	for (const char* path : dataset_paths)
 	{
-		dataset_count += populate_database(database, path) ? 1 : 0;
+		timer parse_timer;
+		unsigned element_count = 0;
+		std::cout << "parsing dataset \"" << path << '"' << std::endl;
+		auto new_dataset = std::make_unique<dataset>(
+			path, keep_elements_in_memory, quit,
+			[&](dataset::element_id id, const std::string &str)
+			{
+				try
+				{
+					auto json = nlohmann::json::parse(str);
+					database.add(json["name"].template get<std::string>(), dataset_entry{id, uint16_t(datasets.size())});
+					++element_count;
+				}
+				catch (const std::exception &e)
+				{
+					if (!str.empty())
+					{
+						std::cerr << "error while parsing line " << id << ": " << e.what() << std::endl;
+					}
+				}
+			});
 		RETURN_IF_QUIT(0);
+		if (new_dataset->ready())
+		{
+			std::cout << "parsed " << element_count << " entries in " << parse_timer.get() << "ms" << std::endl;
+			datasets.push_back(std::move(new_dataset));
+			++dataset_count;
+		}
+		else if (element_count > 0)
+		{
+			// A file error occurred during parsing.
+			// We don't want entries from broken files in our
+			// database, but we can't get them out anymore.
+			return 1; // ...So we abort
+		}
 	}
 
 	std::cout << "processed " << dataset_count << "/" << dataset_paths.size() << " datasets" << std::endl;
@@ -153,5 +174,6 @@ int main(int argc, char const *argv[])
 		std::cerr << "failed to start server" << std::endl;
 	}
 
+	datasets.clear();
 	return 0;
 }
