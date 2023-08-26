@@ -23,7 +23,7 @@ See [api.md](api.md)
 
 ## Example
 
-For a JSON file `parks.json` containing:
+For a file `parks.txt` containing:
 ```
 {"name": "Hyde Park", "city": "London", "lat": 51.507327, "lon": -0.169644}
 {"name": "Central Park", "city": "New York", "lat": 40.7825, "lon": -73.966111}
@@ -32,7 +32,7 @@ For a JSON file `parks.json` containing:
 
 Run:
 ```bash
-./fuzzy-search-server parks.json -p 1234
+./fuzzy-search-server parks.txt -p 1234
 ```
 
 Query:
