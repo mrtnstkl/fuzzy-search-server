@@ -9,11 +9,12 @@ Uses [cpp-httplib](https://github.com/yhirose/cpp-httplib) and [nlohmann/json](h
 ## Usage
 
 ```
-./fuzzy-search-server DATASET... [-p PORT] [-bi | -tri | -tetra] [-disk]
+./fuzzy-search-server DATASET... [-p PORT] [-n NAME_FIELD] [-bi | -tri | -tetra] [-disk]
 ```
 
-- `DATASET`: The paths to the text files containing the data entries. Each line should be a separate JSON object with at least a "name" field.
+- `DATASET`: The paths to the text files containing the data entries. Each line should be a separate JSON object with at least a name field.
 - `PORT` (optional): The port number on which the server should listen. Defaults to `8080`.
+- `NAME_FIELD` (optional): A custom name field. Default is "name". Each dataset entry should have this field.
 - `-bi | -tri | -tetra` (optional): The n-gram-size used by the fuzzy search. Defaults to `-bi`. Higher sizes can drastically improve speed, but might miss out on some more distant matches.
 - `-disk` (optional): If this flag is set, only element names will be kept in memory. So when elements are requested, they will be read from disk. Reduces memory use (especially for datasets with large JSON objects) at the cost of performance.
 

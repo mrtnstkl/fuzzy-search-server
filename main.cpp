@@ -10,7 +10,7 @@
 #include "dataset.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
-#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-bi | -tri | -tetra] [-disk]" << std::endl
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-n NAME_FIELD] [-bi | -tri | -tetra] [-disk]" << std::endl
 
 int port = 8080;
 std::atomic_bool quit = false;
@@ -55,6 +55,7 @@ int main(int argc, char const *argv[])
 	// process args
 	int ngram_size = 2;
 	bool keep_elements_in_memory = true;
+	const char* name_field = "name";
 	std::vector<const char*> dataset_paths;
 	for (int i = 1; i < argc; i++)
 	{
@@ -97,6 +98,18 @@ int main(int argc, char const *argv[])
 			++i;
 			continue;
 		}
+		if (arg == "-n")
+		{
+			if (i + 1 >= argc)
+			{
+				std::cerr << "Missing parameter for -n" << std::endl;
+				PRINT_USAGE(argv[0]);
+				return 1;
+			}
+			name_field = argv[i + 1];
+			++i;
+			continue;
+		}
 		dataset_paths.push_back(argv[i]);
 
 	}
@@ -131,7 +144,7 @@ int main(int argc, char const *argv[])
 				try
 				{
 					auto json = nlohmann::json::parse(str);
-					database.add(json["name"].template get<std::string>(), dataset_entry{id, uint16_t(datasets.size())});
+					database.add(json[name_field].template get<std::string>(), dataset_entry{id, uint16_t(datasets.size())});
 					++element_count;
 				}
 				catch (const std::exception &e)
