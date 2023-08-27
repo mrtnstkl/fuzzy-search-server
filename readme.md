@@ -9,7 +9,7 @@ Uses [cpp-httplib](https://github.com/yhirose/cpp-httplib) and [nlohmann/json](h
 ## Usage
 
 ```
-./fuzzy-search-server DATASET... [-p PORT] [-n NAME_FIELD] [-bi | -tri | -tetra] [-disk]
+./fuzzy-search-server DATASET... [-p PORT] [-nf NAME_FIELD] [-bi | -tri | -tetra] [-disk]
 ```
 
 - `DATASET`: The paths to the text files containing the data entries. Each line should be a separate JSON object with at least a name field.

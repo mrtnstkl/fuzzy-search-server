@@ -10,7 +10,7 @@
 #include "dataset.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
-#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-n NAME_FIELD] [-bi | -tri | -tetra] [-disk]" << std::endl
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-bi | -tri | -tetra] [-disk]" << std::endl
 
 int port = 8080;
 std::atomic_bool quit = false;
@@ -98,7 +98,7 @@ int main(int argc, char const *argv[])
 			++i;
 			continue;
 		}
-		if (arg == "-n")
+		if (arg == "-nf")
 		{
 			if (i + 1 >= argc)
 			{
