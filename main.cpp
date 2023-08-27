@@ -10,7 +10,7 @@
 #include "dataset.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
-#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bi | -tri | -tetra] [-disk]" << std::endl
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bi | -tri | -tetra] [-fl] [-disk]" << std::endl
 
 int port = 8080;
 std::atomic_bool quit = false;
@@ -55,6 +55,7 @@ int main(int argc, char const *argv[])
 	// process args
 	int ngram_size = 2;
 	bool keep_elements_in_memory = true;
+	bool enforce_first_letter_match = false;
 	int result_limit = 100;
 	const char* name_field = "name";
 	std::vector<const char*> dataset_paths;
@@ -79,6 +80,11 @@ int main(int argc, char const *argv[])
 		if (arg == "-disk")
 		{
 			keep_elements_in_memory = false;
+			continue;
+		}
+		if (arg == "-fl" || arg == "-first-letter")
+		{
+			enforce_first_letter_match = true;
 			continue;
 		}
 		if (arg == "-p" || arg == "-port")
@@ -132,7 +138,7 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 
-	fuzzy::sorted_database<dataset_entry> database(ngram_size, result_limit > 0 ? result_limit : SIZE_MAX);
+	fuzzy::sorted_database<dataset_entry> database(ngram_size, result_limit > 0 ? result_limit : SIZE_MAX, enforce_first_letter_match);
 	timer init_timer;
 
 	std::signal(SIGINT, signal_handler);
