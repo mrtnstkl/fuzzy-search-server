@@ -10,7 +10,7 @@
 #include "dataset.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
-#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-bi | -tri | -tetra] [-disk]" << std::endl
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bi | -tri | -tetra] [-disk]" << std::endl
 
 int port = 8080;
 std::atomic_bool quit = false;
@@ -55,6 +55,7 @@ int main(int argc, char const *argv[])
 	// process args
 	int ngram_size = 2;
 	bool keep_elements_in_memory = true;
+	int result_limit = 100;
 	const char* name_field = "name";
 	std::vector<const char*> dataset_paths;
 	for (int i = 1; i < argc; i++)
@@ -98,6 +99,18 @@ int main(int argc, char const *argv[])
 			++i;
 			continue;
 		}
+		if (arg == "-l" || arg == "-limit")
+		{
+			if (i + 1 >= argc)
+			{
+				std::cerr << "Missing parameter for " << arg << std::endl;
+				PRINT_USAGE(argv[0]);
+				return 1;
+			}
+			result_limit = atoi(argv[i + 1]);
+			++i;
+			continue;
+		}
 		if (arg == "-nf" || arg == "-name-field")
 		{
 			if (i + 1 >= argc)
@@ -119,7 +132,7 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 
-	fuzzy::sorted_database<dataset_entry> database(ngram_size);
+	fuzzy::sorted_database<dataset_entry> database(ngram_size, result_limit > 0 ? result_limit : SIZE_MAX);
 	timer init_timer;
 
 	std::signal(SIGINT, signal_handler);
