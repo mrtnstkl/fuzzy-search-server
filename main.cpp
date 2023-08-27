@@ -80,11 +80,11 @@ int main(int argc, char const *argv[])
 			keep_elements_in_memory = false;
 			continue;
 		}
-		if (arg == "-p")
+		if (arg == "-p" || arg == "-port")
 		{
 			if (i + 1 >= argc)
 			{
-				std::cerr << "Missing parameter for -p" << std::endl;
+				std::cerr << "Missing parameter for " << arg << std::endl;
 				PRINT_USAGE(argv[0]);
 				return 1;
 			}
@@ -98,11 +98,11 @@ int main(int argc, char const *argv[])
 			++i;
 			continue;
 		}
-		if (arg == "-nf")
+		if (arg == "-nf" || arg == "-name-field")
 		{
 			if (i + 1 >= argc)
 			{
-				std::cerr << "Missing parameter for -n" << std::endl;
+				std::cerr << "Missing parameter for " << arg << std::endl;
 				PRINT_USAGE(argv[0]);
 				return 1;
 			}
