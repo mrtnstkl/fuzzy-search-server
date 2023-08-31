@@ -6,17 +6,17 @@
 #include "util.h"
 
 template <typename T>
-httplib::Server::Handler fuzzy_handler(fuzzy::sorted_database<std::string> &database);
+httplib::Server::Handler fuzzy_handler(fuzzy::sorted_database<T> &database);
 template <typename T>
-httplib::Server::Handler fuzzy_list_handler(fuzzy::sorted_database<std::string> &database);
+httplib::Server::Handler fuzzy_list_handler(fuzzy::sorted_database<T> &database);
 template <typename T>
-httplib::Server::Handler exact_handler(fuzzy::sorted_database<std::string> &database);
+httplib::Server::Handler exact_handler(fuzzy::sorted_database<T> &database);
 template <typename T>
-httplib::Server::Handler exact_list_handler(fuzzy::sorted_database<std::string> &database);
+httplib::Server::Handler exact_list_handler(fuzzy::sorted_database<T> &database);
 template <typename T>
-httplib::Server::Handler completion_handler(fuzzy::sorted_database<std::string> &database);
+httplib::Server::Handler completion_handler(fuzzy::sorted_database<T> &database);
 template <typename T>
-httplib::Server::Handler completion_list_handler(fuzzy::sorted_database<std::string> &database);
+httplib::Server::Handler completion_list_handler(fuzzy::sorted_database<T> &database);
 
 
 template <typename T>
