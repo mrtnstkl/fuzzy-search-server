@@ -129,8 +129,13 @@ int main(int argc, char const *argv[])
 			++i;
 			continue;
 		}
+		if (arg[0] == '-')
+		{
+			std::cerr << "Invalid argument \"" << arg << '"' << std::endl;
+			PRINT_USAGE(argv[0]);
+			return 1;
+		}
 		dataset_paths.push_back(argv[i]);
-
 	}
 	if (dataset_paths.empty())
 	{
