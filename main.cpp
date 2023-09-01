@@ -12,7 +12,6 @@
 #define RETURN_IF_QUIT(x) if (quit) return x 
 #define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bi | -tri | -tetra] [-fl] [-disk]" << std::endl
 
-int port = 8080;
 std::atomic_bool quit = false;
 
 httplib::Server server;
@@ -53,6 +52,7 @@ int main(int argc, char const *argv[])
 	}
 
 	// process args
+	int port = 8080;
 	int ngram_size = 2;
 	bool keep_elements_in_memory = true;
 	bool enforce_first_letter_match = false;
@@ -153,6 +153,18 @@ int main(int argc, char const *argv[])
 	server.Get("/exact/list", exact_list_handler(database));
 	server.Get("/complete", completion_handler(database));
 	server.Get("/complete/list", completion_list_handler(database));
+
+	std::cout << "port set to " << port << std::endl;
+	std::cout << "name field set to \"" << name_field << "\"" << std::endl;
+	std::cout << "max page size set to " << (result_limit > 0 ? std::to_string(result_limit) : "unlimited") << std::endl;
+	std::cout << "using " << (ngram_size == 2 ? "bigrams" : (ngram_size == 3 ? "trigrams" : "tetragrams")) << std::endl;
+	if (enforce_first_letter_match)
+		std::cout << "enforcing first letter match for fuzzy search" << std::endl;
+	if (keep_elements_in_memory)
+		std::cout << "using in-memory mode" << std::endl;
+	else
+		std::cout << "using disk mode: do not modify dataset files while the program is running!" << std::endl;
+	std::cout << std::endl;
 
 	// process datasets
 	int dataset_count = 0;
