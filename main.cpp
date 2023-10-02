@@ -153,6 +153,15 @@ int main(int argc, char const *argv[])
 	server.Get("/exact/list", exact_list_handler(database));
 	server.Get("/complete", completion_handler(database));
 	server.Get("/complete/list", completion_list_handler(database));
+	server.set_post_routing_handler([](const auto&, auto& res) {
+		res.set_header("Access-Control-Allow-Origin", "*");
+		return true;
+	});
+	server.Options(".*", [](const auto&, auto& res) {
+		res.set_header("Access-Control-Allow-Origin", "*");
+		res.set_header("Access-Control-Allow-Methods", "GET");
+		res.set_header("Access-Control-Allow-Headers", "Content-Type");
+	});
 
 	std::cout << "port set to " << port << std::endl;
 	std::cout << "name field set to \"" << name_field << "\"" << std::endl;
