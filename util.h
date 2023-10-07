@@ -17,10 +17,11 @@ public:
 		start_ = std::chrono::steady_clock::now();
 		running_ = true;
 	}
-	void stop()
+	timer& stop()
 	{
 		running_ = false;
 		stop_ = std::chrono::steady_clock::now();
+		return *this;
 	}
 	template <typename Duration = std::chrono::milliseconds>
 	uint64_t get()

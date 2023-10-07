@@ -176,7 +176,8 @@ int main(int argc, char const *argv[])
 	std::cout << std::endl;
 
 	// process datasets
-	int dataset_count = 0;
+	unsigned dataset_count = 0;
+	unsigned total_element_count = 0;
 	for (const char* path : dataset_paths)
 	{
 		timer parse_timer;
@@ -206,6 +207,7 @@ int main(int argc, char const *argv[])
 			std::cout << "parsed " << element_count << " entries in " << parse_timer.get() << "ms" << std::endl;
 			datasets.push_back(std::move(new_dataset));
 			++dataset_count;
+			total_element_count += element_count;
 		}
 		else if (element_count > 0)
 		{
@@ -216,15 +218,30 @@ int main(int argc, char const *argv[])
 		}
 	}
 
-	std::cout << "processed " << dataset_count << "/" << dataset_paths.size() << " datasets" << std::endl;
+	std::cout << "processed " << total_element_count << " elements from " << dataset_count << "/" << dataset_paths.size() << " datasets" << std::endl;
 
 	std::cout << "preparing database" << std::endl;
 	timer db_init_timer;
 	database.build();
 	RETURN_IF_QUIT(0);
-	std::cout << "database prepared in " << db_init_timer.get() << "ms" << std::endl;
+	std::cout << "database prepared in " << db_init_timer.stop().get() << "ms" << std::endl;
 
-	std::cout << "\ninitialization took " << init_timer.get() << "ms" << std::endl;
+	std::cout << "\ninitialization took " << init_timer.stop().get() << "ms" << std::endl;
+
+	server.Get("/info", [&](const auto &, httplib::Response &res) {
+		res.set_content(
+			nlohmann::json({
+				{"ngramSize", ngram_size},
+				{"inMemory", keep_elements_in_memory},
+				{"firstLetterMatch", enforce_first_letter_match},
+				{"resultLimit", result_limit},
+				{"datasetCount", dataset_count},
+				{"elementCount", total_element_count},
+				{"startUpTime", init_timer.get()}
+			}).dump(4),
+			"application/json"
+		);
+	});
 
 	std::cout << "\nstarting server on port " << port << std::endl;
 	if (!server.listen("0.0.0.0", port))
