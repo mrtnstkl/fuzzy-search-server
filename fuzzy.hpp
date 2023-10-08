@@ -164,6 +164,7 @@ namespace fuzzy
 
 	using namespace internal;
 
+	// stores a name, and meta info of type T
 	template <typename T>
 	struct db_entry
 	{
@@ -174,6 +175,8 @@ namespace fuzzy
 	template <typename T>
 	using db_entry_reference = db_entry<T>*;
 
+	// represents a search result
+	// contains a reference to a database entry, along with a distance indicating similarity
 	template <typename T>
 	struct result
 	{
@@ -185,6 +188,8 @@ namespace fuzzy
 		}
 	};
 
+	// a structured container for search results
+	// results are sorted by their distance, allowing for retrieval of best matches
 	template <typename T>
 	class results
 	{
@@ -240,9 +245,12 @@ namespace fuzzy
 	{
 	protected:
 
-		class ngram_bucket
+		// groups element ids by name length
+		class ngram_bucket // todo: rename to element_bucket
 		{
+			// element count
 			uint64_t elements_ = 0;
+			// groups element ids by name length
 			std::map<uint16_t, std::vector<id_type>> data_;
 
 		public:
@@ -258,7 +266,9 @@ namespace fuzzy
 			}
 		};
 
+		// maps ngram tokens to element buckets
 		std::unordered_map<ngram_token, ngram_bucket> inverted_index_;
+		// all the database entries
 		std::vector<db_entry<T>> data_;
 
 		id_type id_counter_ = 0;
