@@ -140,8 +140,10 @@ httplib::Server::Handler fuzzycomplete_list_handler(fuzzy::sorted_database<T> &d
 			return;
 		}
 		const auto query_string = req.get_param_value("q");
+		const int similarity_tolerance = req.has_param("tol") ? std::stoi(req.get_param_value("tol")) : 2;
 		timer query_timer;
-		const auto result_list = database.fuzzy_search(query_string, query_string.length()).extract(0, 50, true, 3); // todo: dont hardcode these parameters
+		// todo: dont hardcode max_count
+		const auto result_list = database.fuzzy_search(query_string, query_string.length()).extract(0, 50, true, similarity_tolerance);
 		std::cout
 			<< "fuzzycomplete-searched " << query_string << " in " << query_timer.get() << "ms: "
 			<< (result_list.empty() ? "not found" : result_list[0].element->name) << std::endl;
