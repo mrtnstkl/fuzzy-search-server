@@ -6,6 +6,10 @@ A simple HTTP server that performs fuzzy searches on a dataset loaded from a tex
 
 Uses [cpp-httplib](https://github.com/yhirose/cpp-httplib) and [nlohmann/json](https://github.com/nlohmann/json).
 
+### Demo
+
+I host an **[interactive demo](https://gnorts.xyz/osmpoidemo/)** on my website. The fuzzy-search-server acts as the backend.
+
 ## Usage
 
 ```
