@@ -246,7 +246,7 @@ namespace fuzzy
 	protected:
 
 		// groups element ids by name length
-		class ngram_bucket // todo: rename to element_bucket
+		class element_bucket
 		{
 			// element count
 			uint64_t elements_ = 0;
@@ -267,7 +267,7 @@ namespace fuzzy
 		};
 
 		// maps ngram tokens to element buckets
-		std::unordered_map<ngram_token, ngram_bucket> inverted_index_;
+		std::unordered_map<ngram_token, element_bucket> inverted_index_;
 		// all the database entries
 		std::vector<db_entry<T>> data_;
 
@@ -393,21 +393,21 @@ namespace fuzzy
 				abort();
 			}
 
-			std::vector<ngram_bucket *> ngram_buckets;
+			std::vector<element_bucket *> element_buckets;
 			for (auto token : query_tokens)
 			{
 				auto bucket = inverted_index_.find(token);
 				if (bucket != inverted_index_.end())
 				{
-					ngram_buckets.push_back(&bucket->second);
+					element_buckets.push_back(&bucket->second);
 				}
 			}
 
 			// build list of word ids that share an ngram
 			std::unordered_set<id_type> potential_matches;
-			for (ngram_bucket *ngram_bucket : ngram_buckets)
+			for (element_bucket *element_bucket : element_buckets)
 			{
-				for (const auto& [length, id_list] : ngram_bucket->get())
+				for (const auto& [length, id_list] : element_bucket->get())
 				{
 					for (id_type id : id_list)
 					{
