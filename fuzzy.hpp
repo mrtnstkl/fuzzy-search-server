@@ -124,7 +124,7 @@ namespace fuzzy
 			return true;
 		}
 
-		inline int osa_distance(const std::string &s1, const std::string &s2)
+		inline int osa_distance(std::string_view s1, std::string_view s2)
 		{
 			const int len_s1 = s1.size();
 			const int len_s2 = s2.size();
@@ -347,7 +347,7 @@ namespace fuzzy
 			add(std::string(name), std::move(meta), id_counter_++);
 		}
 
-		virtual results<T> fuzzy_search(const std::string& query)
+		virtual results<T> fuzzy_search(const std::string& query, size_t truncate = 0)
 		{
 			// for an empty query, return an empty result
 			if (query.empty())
@@ -416,6 +416,7 @@ namespace fuzzy
 				}
 			}
 
+			truncate = truncate ? truncate : SIZE_MAX;
 			results<T> result_list;
 			for (id_type id : potential_matches)
 			{
@@ -424,7 +425,7 @@ namespace fuzzy
 				{
 					continue;
 				}
-				result_list.add(&data_[id], osa_distance(query, data_[id].name));
+				result_list.add(&data_[id],	osa_distance(query, std::string_view(data_[id].name.c_str(), std::min(data_[id].name.length(), truncate))));
 			}
 			return result_list;
 		}
@@ -534,13 +535,13 @@ namespace fuzzy
 			return extract_page(range, page_number, page_size);
 		}
 
-		results<T> fuzzy_search(const std::string& query) override
+		results<T> fuzzy_search(const std::string& query, size_t truncate = 0) override
 		{
 			if (!ready_)
 			{
 				build();
 			}
-			return database<T>::fuzzy_search(query);
+			return database<T>::fuzzy_search(query, truncate);
 		}
 	};
 
