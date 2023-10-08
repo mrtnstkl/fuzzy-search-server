@@ -193,13 +193,14 @@ namespace fuzzy
 	class result_list : public std::vector<result<T>>
 	{
 		public:
+		static constexpr auto length_sort_func = [](const result<T>& a, const result<T>& b)
+		{ 
+			return a.element->name.length() < b.element->name.length(); 
+		};
+
 		result_list<T>& length_sort()
 		{
-			std::sort(
-				this->begin(), this->end(),
-				[](const result<T>& a, const result<T>& b) 
-				{ return a.element->name.length() < b.element->name.length(); }
-			);
+			std::sort(this->begin(), this->end(), length_sort_func);
 			return *this;
 		}
 	};
@@ -247,22 +248,38 @@ namespace fuzzy
 			return extracted_results;
 		}
 
-		result_list<T> extract(uint32_t max_count = UINT32_MAX, int max_distance = INT_MAX)
+		result_list<T> extract(uint32_t min_count, uint32_t max_count = UINT32_MAX, bool length_sort = false, int distance_range = INT_MAX, int max_distance = INT_MAX)
 		{
 			result_list<T> extracted_results;
+			long best_distance = INT_MAX;
 			for (const auto &[result_distance, results_at_that_distance] : results_)
 			{
-				if (result_distance > max_distance)
+				best_distance = std::min(long(result_distance), best_distance);
+
+				if (long(result_distance) > best_distance + long(distance_range) && extracted_results.size() >= min_count)
 				{
+					// we already have min_count results, and all further results are too far away from be best result
 					break;
 				}
+				if (result_distance > max_distance)
+				{
+					// all further results exceed the max_distance
+					break;
+				}
+				const auto old_size = extracted_results.size();
 				for (result<T> result : results_at_that_distance)
 				{
 					extracted_results.push_back(result);
-					if (extracted_results.size() >= max_count)
-					{
-						return extracted_results;
-					}
+				}
+				if (length_sort)
+				{
+					std::sort(extracted_results.begin() + old_size, extracted_results.end(), result_list<T>::length_sort_func);
+				}
+				if (extracted_results.size() >= max_count)
+				{
+					// max_count has been reached
+					extracted_results.erase(extracted_results.begin() + max_count, extracted_results.end());
+					break;
 				}
 			}
 			return extracted_results;
