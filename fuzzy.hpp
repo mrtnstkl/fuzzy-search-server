@@ -188,12 +188,28 @@ namespace fuzzy
 		}
 	};
 
+	// a std::vector<result<T>> with added functionality
+	template <typename T>
+	class result_list : public std::vector<result<T>>
+	{
+		public:
+		result_list<T>& length_sort()
+		{
+			std::sort(
+				this->begin(), this->end(),
+				[](const result<T>& a, const result<T>& b) 
+				{ return a.element->name.length() < b.element->name.length(); }
+			);
+			return *this;
+		}
+	};
+
 	// a structured container for search results
 	// results are sorted by their distance, allowing for retrieval of best matches
 	template <typename T>
 	class result_collection
 	{
-		std::map<int, std::vector<result<T>>> results_;
+		std::map<int, result_list<T>> results_;
 		size_t size_;
 
 	public:
@@ -213,14 +229,14 @@ namespace fuzzy
 			return size_;
 		}
 
-		std::vector<result<T>> best()
+		result_list<T> best()
 		{
-			return empty() ? std::vector<result<T>>{} : results_.begin()->second;
+			return empty() ? result_list<T>{} : results_.begin()->second;
 		}
 
-		std::vector<result<T>> extract(uint32_t max_count = UINT32_MAX, int max_distance = INT_MAX)
+		result_list<T> extract(uint32_t max_count = UINT32_MAX, int max_distance = INT_MAX)
 		{
-			std::vector<result<T>> extracted_results;
+			result_list<T> extracted_results;
 			for (const auto &[result_distance, results_at_that_distance] : results_)
 			{
 				if (result_distance > max_distance)
@@ -254,7 +270,6 @@ namespace fuzzy
 			std::map<uint16_t, std::vector<id_type>> data_;
 
 		public:
-
 			void add(id_type id, uint16_t word_length)
 			{
 				data_[word_length].push_back(id);
