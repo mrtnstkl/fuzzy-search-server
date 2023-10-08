@@ -122,7 +122,7 @@ httplib::Server::Handler exact_handler(fuzzy::sorted_database<T> &database)
 			res.set_content("no matches", "text/plain");
 			return;
 		}
-		res.set_content(process_results(query_result.extract(), false), "application/json");
+		res.set_content(process_results(query_result.all(), false), "application/json");
 	};
 }
 
@@ -143,7 +143,7 @@ httplib::Server::Handler exact_list_handler(fuzzy::sorted_database<T> &database)
 		timer query_timer;
 		auto query_result = database.exact_search(query_string, std::max(0, page_number), std::max(0, page_size));
 		std::cout << "exact-searched " << query_string << " in " << query_timer.get() << "ms" << std::endl;
-		res.set_content(process_results(query_result.extract(), true), "application/json");
+		res.set_content(process_results(query_result.all(), true), "application/json");
 	};
 }
 
@@ -170,7 +170,7 @@ httplib::Server::Handler completion_handler(fuzzy::sorted_database<T> &database)
 			res.set_content("no matches", "text/plain");
 			return;
 		}
-		res.set_content(process_results(query_result.extract(), false), "application/json");
+		res.set_content(process_results(query_result.all(), false), "application/json");
 	};
 }
 
@@ -191,6 +191,6 @@ httplib::Server::Handler completion_list_handler(fuzzy::sorted_database<T> &data
 		timer query_timer;
 		auto query_result = database.completion_search(query_string, std::max(0, page_number), std::max(0, page_size));
 		std::cout << "completion-searched " << query_string << " in " << query_timer.get() << "ms" << std::endl;
-		res.set_content(process_results(query_result.extract(), true), "application/json");
+		res.set_content(process_results(query_result.all(), true), "application/json");
 	};
 }

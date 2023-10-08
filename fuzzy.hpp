@@ -234,6 +234,19 @@ namespace fuzzy
 			return empty() ? result_list<T>{} : results_.begin()->second;
 		}
 
+		result_list<T> all()
+		{
+			result_list<T> extracted_results;
+			for (const auto &[result_distance, results_at_that_distance] : results_)
+			{
+				for (result<T> result : results_at_that_distance)
+				{
+					extracted_results.push_back(result);
+				}
+			}
+			return extracted_results;
+		}
+
 		result_list<T> extract(uint32_t max_count = UINT32_MAX, int max_distance = INT_MAX)
 		{
 			result_list<T> extracted_results;
