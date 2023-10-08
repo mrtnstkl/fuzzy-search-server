@@ -102,6 +102,54 @@ httplib::Server::Handler fuzzy_list_handler(fuzzy::sorted_database<T> &database)
 }
 
 template <typename T>
+httplib::Server::Handler fuzzycomplete_handler(fuzzy::sorted_database<T> &database)
+{
+	return [&](const httplib::Request &req, httplib::Response &res)
+	{
+		if (!req.has_param("q"))
+		{
+			res.status = 400;
+			res.set_content("missing query parameter q", "text/plain");
+			return;
+		}
+		const auto query_string = req.get_param_value("q");
+		timer query_timer;
+		const auto result_list = database.fuzzy_search(query_string, query_string.length()).extract(0, 1, true);
+		std::cout
+			<< "fuzzycomplete-searched " << query_string << " in " << query_timer.get() << "ms: "
+			<< (result_list.empty() ? "not found" : result_list[0].element->name) << std::endl;
+		if (result_list.empty())
+		{
+			res.status = 404;
+			res.set_content("no matches", "text/plain");
+			return;
+		}
+		res.set_content(process_results(result_list, false), "application/json");
+	};
+}
+
+template <typename T>
+httplib::Server::Handler fuzzycomplete_list_handler(fuzzy::sorted_database<T> &database)
+{
+	return [&](const httplib::Request &req, httplib::Response &res)
+	{
+		if (!req.has_param("q"))
+		{
+			res.status = 400;
+			res.set_content("missing query parameter q", "text/plain");
+			return;
+		}
+		const auto query_string = req.get_param_value("q");
+		timer query_timer;
+		const auto result_list = database.fuzzy_search(query_string, query_string.length()).extract(0, 50, true, 3); // todo: dont hardcode these parameters
+		std::cout
+			<< "fuzzycomplete-searched " << query_string << " in " << query_timer.get() << "ms: "
+			<< (result_list.empty() ? "not found" : result_list[0].element->name) << std::endl;
+		res.set_content(process_results(result_list, true), "application/json");
+	};
+}
+
+template <typename T>
 httplib::Server::Handler exact_handler(fuzzy::sorted_database<T> &database)
 {
 	return [&](const httplib::Request &req, httplib::Response &res)
