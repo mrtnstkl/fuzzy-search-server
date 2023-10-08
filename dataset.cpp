@@ -76,6 +76,11 @@ std::string dataset::get_element(element_id id)
 	return line;
 }
 
+size_t dataset::size() const
+{
+    return elements_.size();
+}
+
 bool dataset::ready() const
 {
 	return ready_;

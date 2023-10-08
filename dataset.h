@@ -30,6 +30,7 @@ public:
 	dataset &operator=(const dataset &) = delete;
 
 	std::string get_element(element_id id);
+	size_t size() const;
 
 	bool ready() const;
 };
