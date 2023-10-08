@@ -191,7 +191,7 @@ namespace fuzzy
 	// a structured container for search results
 	// results are sorted by their distance, allowing for retrieval of best matches
 	template <typename T>
-	class results
+	class result_collection
 	{
 		std::map<int, std::vector<result<T>>> results_;
 		size_t size_;
@@ -347,11 +347,11 @@ namespace fuzzy
 			add(std::string(name), std::move(meta), id_counter_++);
 		}
 
-		virtual results<T> fuzzy_search(const std::string& query, size_t truncate = 0)
+		virtual result_collection<T> fuzzy_search(const std::string& query, size_t truncate = 0)
 		{
 			// for an empty query, return an empty result
 			if (query.empty())
-				return results<T>();
+				return result_collection<T>();
 
 			std::vector<ngram_token> query_tokens;
 			switch (options_.ngram_size)
@@ -417,7 +417,7 @@ namespace fuzzy
 			}
 
 			truncate = truncate ? truncate : SIZE_MAX;
-			results<T> result_list;
+			result_collection<T> results;
 			for (id_type id : potential_matches)
 			{
 				// to speed things up, ignore words that dont start with the same letter
@@ -425,9 +425,9 @@ namespace fuzzy
 				{
 					continue;
 				}
-				result_list.add(&data_[id],	osa_distance(query, std::string_view(data_[id].name.c_str(), std::min(data_[id].name.length(), truncate))));
+				results.add(&data_[id],	osa_distance(query, std::string_view(data_[id].name.c_str(), std::min(data_[id].name.length(), truncate))));
 			}
-			return result_list;
+			return results;
 		}
 	};
 
@@ -455,7 +455,7 @@ namespace fuzzy
 			database<T>::data_[id].meta = meta;
 		}
 
-		results<T> extract_page(std::pair<typename std::vector<db_entry<T>>::iterator, typename std::vector<db_entry<T>>::iterator> range, size_t page_number, size_t page_size)
+		result_collection<T> extract_page(std::pair<typename std::vector<db_entry<T>>::iterator, typename std::vector<db_entry<T>>::iterator> range, size_t page_number, size_t page_size)
 		{
 			if (page_size == 0)
 			{
@@ -464,7 +464,7 @@ namespace fuzzy
 			}
 			page_size = std::min<size_t>(page_size, options_.result_limit);
 
-			results<T> results;
+			result_collection<T> results;
 			size_t start_index = page_number * page_size;
 			size_t end_index = start_index + page_size;
 			if (size_t(range.second - range.first) < start_index)
@@ -504,7 +504,7 @@ namespace fuzzy
 			ready_ = true;
 		}
 
-		results<T> exact_search(const std::string& query, size_t page_number = 0, size_t page_size = 0)
+		result_collection<T> exact_search(const std::string& query, size_t page_number = 0, size_t page_size = 0)
 		{
 			if (!ready_)
 			{
@@ -517,13 +517,13 @@ namespace fuzzy
 			return extract_page(range, page_number, page_size);
 		}
 
-		results<T> completion_search(const std::string& query, size_t page_number = 0, size_t page_size = 0)
+		result_collection<T> completion_search(const std::string& query, size_t page_number = 0, size_t page_size = 0)
 		{
 			if (!ready_)
 			{
 				build();
 			}
-			results<T> results;
+			result_collection<T> results;
 			auto range = std::ranges::equal_range(
 				database<T>::data_, db_entry<T>{query, T{}},
 				[truncation_length = query.size()](const db_entry<T> &a, const db_entry<T> &b)
@@ -535,7 +535,7 @@ namespace fuzzy
 			return extract_page(range, page_number, page_size);
 		}
 
-		results<T> fuzzy_search(const std::string& query, size_t truncate = 0) override
+		result_collection<T> fuzzy_search(const std::string& query, size_t truncate = 0) override
 		{
 			if (!ready_)
 			{
