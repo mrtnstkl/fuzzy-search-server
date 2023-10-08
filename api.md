@@ -21,6 +21,27 @@ Gets a list of best matches.
 
 ---
 
+## Fuzzycomplete Search
+
+Searches for entries that have a similar beginning. Similarity is determined by calculating the optimal string alignment distance. Well suited for search fields that yield results as you type.
+
+### `GET /fuzzycomplete`
+
+Out of the entries with the most similar beginning, it gets one that is closest in length to the search term.
+
+**Parameters:**
+- `q`: The search term.
+
+### `GET /fuzzycomplete/list`
+
+Gets a sorted list of entries with a similar beginning. The shortest, most similar entry comes first.
+
+**Parameters:**
+- `q`: The search term.
+- `[tol]`: The similarity tolerance, which limits the amount of results by only allowing ones that are at most `tol` away from the best match. Default is `2`.
+
+---
+
 ## Exact Search
 
 Only searches for exact matches.
