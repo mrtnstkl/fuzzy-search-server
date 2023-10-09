@@ -454,23 +454,29 @@ namespace fuzzy
 				}
 			}
 
-			truncate = truncate ? truncate : SIZE_MAX;
-			result_collection<T> results;
-			// calculate the distance to all the potential matches
+			// build list of word ids that share an ngram
+			std::unordered_set<id_type> potential_matches;
 			for (element_bucket *element_bucket : element_buckets)
 			{
 				for (const auto& [length, id_list] : element_bucket->get())
 				{
 					for (id_type id : id_list)
 					{
-						// to speed things up, ignore words that dont start with the same letter
-						if (options_.first_letter_opt && to_lower(query[0]) != to_lower(data_[id].name[0]))
-						{
-							continue;
-						}
-						results.add(&data_[id],	osa_distance(query, std::string_view(data_[id].name.c_str(), std::min(data_[id].name.length(), truncate))));
+						potential_matches.insert(id);
 					}
 				}
+			}
+
+			truncate = truncate ? truncate : SIZE_MAX;
+			result_collection<T> results;
+			for (id_type id : potential_matches)
+			{
+				// to speed things up, ignore words that dont start with the same letter
+				if (options_.first_letter_opt && to_lower(query[0]) != to_lower(data_[id].name[0]))
+				{
+					continue;
+				}
+				results.add(&data_[id],	osa_distance(query, std::string_view(data_[id].name.c_str(), std::min(data_[id].name.length(), truncate))));
 			}
 			return results;
 		}
