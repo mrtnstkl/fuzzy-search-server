@@ -126,38 +126,42 @@ namespace fuzzy
 
 		inline int osa_distance(std::string_view s1, std::string_view s2)
 		{
-			const int len_s1 = s1.size();
-			const int len_s2 = s2.size();
+			std::string s1_lower = std::string(s1);
+			std::string s2_lower = std::string(s2);
+			std::transform(s1_lower.begin(), s1_lower.end(), s1_lower.begin(), to_lower);
+			std::transform(s2_lower.begin(), s2_lower.end(), s2_lower.begin(), to_lower);
 
-			std::vector<std::vector<int>> dp(len_s1 + 1, std::vector<int>(len_s2 + 1));
+			const int len_s1 = s1_lower.size();
+			const int len_s2 = s2_lower.size();
 
-			for (int i = 0; i <= len_s1; i++)
-			{
-				dp[i][0] = i;
-			}
+			std::vector<int> prev(len_s2 + 1);
+			std::vector<int> curr(len_s2 + 1);
+
 			for (int j = 0; j <= len_s2; j++)
 			{
-				dp[0][j] = j;
+				prev[j] = j;
 			}
 
 			for (int i = 1; i <= len_s1; i++)
 			{
+				curr[0] = i;
 				for (int j = 1; j <= len_s2; j++)
 				{
-					int cost = (to_lower(s1[i - 1]) == to_lower(s2[j - 1])) ? 0 : 1;
-					dp[i][j] = std::min({
-						dp[i - 1][j] + 1,		// deletion
-						dp[i][j - 1] + 1,		// insertion
-						dp[i - 1][j - 1] + cost // substitution
+					const int cost = (s1_lower[i - 1] == s2_lower[j - 1]) ? 0 : 1;
+					curr[j] = std::min({
+						prev[j] + 1,        // deletion
+						curr[j - 1] + 1,    // insertion
+						prev[j - 1] + cost  // substitution
 					});
 
-					if (i > 1 && j > 1 && to_lower(s1[i - 1]) == to_lower(s2[j - 2]) && to_lower(s1[i - 2]) == to_lower(s2[j - 1]))
+					if (s1_lower[i - 1] == s2_lower[j - 2] && s1_lower[i - 2] == s2_lower[j - 1] && i > 1 && j > 1)
 					{
-						dp[i][j] = std::min(dp[i][j], dp[i - 2][j - 2] + 1); // transposition
+						curr[j] = std::min(curr[j], prev[j - 2] + 1); // transposition
 					}
 				}
+				std::swap(prev, curr);
 			}
-			return dp[len_s1][len_s2];
+			return prev[len_s2];
 		}
 
 	}
