@@ -1,5 +1,8 @@
 #include <fstream>
 #include <csignal>
+#include <functional>
+#include <string>
+#include <unordered_set>
 
 #include "httplib.h"
 #include "json.hpp"
@@ -10,7 +13,7 @@
 #include "dataset.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
-#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bi | -tri | -tetra] [-fl] [-disk]" << std::endl
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bi | -tri | -tetra] [-fl] [-disk] [-dc]" << std::endl
 
 std::atomic_bool quit = false;
 
@@ -56,6 +59,7 @@ int main(int argc, char const *argv[])
 	int ngram_size = 2;
 	bool keep_elements_in_memory = true;
 	bool enforce_first_letter_match = false;
+	bool check_duplicates = false;
 	int result_limit = 100;
 	const char* name_field = "name";
 	std::vector<const char*> dataset_paths;
@@ -85,6 +89,11 @@ int main(int argc, char const *argv[])
 		if (arg == "-fl" || arg == "-first-letter")
 		{
 			enforce_first_letter_match = true;
+			continue;
+		}
+		if (arg == "-dc" || arg == "-duplicate-check")
+		{
+			check_duplicates = true;
 			continue;
 		}
 		if (arg == "-p" || arg == "-port")
@@ -175,51 +184,75 @@ int main(int argc, char const *argv[])
 		std::cout << "using in-memory mode" << std::endl;
 	else
 		std::cout << "using disk mode: do not modify dataset files while the program is running!" << std::endl;
+	if (check_duplicates)
+		std::cout << "enabled entry duplication check" << std::endl;
 	std::cout << std::endl;
 
-	// process datasets
+
 	unsigned dataset_count = 0;
 	unsigned total_element_count = 0;
+	unsigned current_dataset_element_count = 0;
+	unsigned current_dataset_duplicates = 0;
+
+	std::unordered_set<size_t> element_hashset; 
+	std::function<void(dataset::element_id id, const std::string &str)> element_handler =
+		[&](dataset::element_id id, const std::string &str)
+		{
+			try
+			{
+				auto json = nlohmann::json::parse(str);
+				database.add(json[name_field].template get<std::string>(), dataset_entry{id, uint16_t(datasets.size())});
+				++current_dataset_element_count;
+			}
+			catch (const std::exception &e)
+			{
+				if (!str.empty())
+				{
+					std::cerr << "error while parsing line " << id << ": " << e.what() << std::endl;
+				}
+			}
+		};
+	if (check_duplicates)
+	{
+		element_handler =
+			[&, base_handler = element_handler, hasher = std::hash<std::string>{}]
+			(dataset::element_id id, const std::string &str)
+			{
+				if (element_hashset.insert(hasher(str)).second) [[likely]]
+					base_handler(id, str);
+				else
+					++current_dataset_duplicates;
+			};
+	}
+
+	// process datasets
 	for (const char* path : dataset_paths)
 	{
 		timer parse_timer;
-		unsigned element_count = 0;
 		std::cout << "parsing dataset \"" << path << '"' << std::endl;
 		auto new_dataset = std::make_unique<dataset>(
-			path, keep_elements_in_memory, quit,
-			[&](dataset::element_id id, const std::string &str)
-			{
-				try
-				{
-					auto json = nlohmann::json::parse(str);
-					database.add(json[name_field].template get<std::string>(), dataset_entry{id, uint16_t(datasets.size())});
-					++element_count;
-				}
-				catch (const std::exception &e)
-				{
-					if (!str.empty())
-					{
-						std::cerr << "error while parsing line " << id << ": " << e.what() << std::endl;
-					}
-				}
-			});
+			path, keep_elements_in_memory, quit, element_handler);
 		RETURN_IF_QUIT(0);
 		if (new_dataset->ready())
 		{
-			std::cout << "parsed " << element_count << " entries in " << parse_timer.get() << "ms" << std::endl;
+			std::cout << "parsed " << current_dataset_element_count << " entries in " << parse_timer.get() << "ms";
+			if (current_dataset_duplicates > 0) std::cout << " (" << current_dataset_duplicates << " duplicates)";
+			std::cout << std::endl;
 			datasets.push_back(std::move(new_dataset));
 			++dataset_count;
-			total_element_count += element_count;
+			total_element_count += current_dataset_element_count;
 		}
-		else if (element_count > 0)
+		else if (current_dataset_element_count > 0)
 		{
 			// A file error occurred during parsing.
 			// We don't want entries from broken files in our
 			// database, but we can't get them out anymore.
 			return 1; // ...So we abort
 		}
+		current_dataset_element_count = 0;
+		current_dataset_duplicates = 0;
 	}
-
+	element_hashset = std::unordered_set<size_t>();
 	std::cout << "processed " << total_element_count << " elements from " << dataset_count << "/" << dataset_paths.size() << " datasets" << std::endl;
 
 	std::cout << "preparing database" << std::endl;
@@ -235,11 +268,12 @@ int main(int argc, char const *argv[])
 			nlohmann::json({
 				{"ngramSize", ngram_size},
 				{"inMemory", keep_elements_in_memory},
+				{"duplicateCheck", check_duplicates},
 				{"firstLetterMatch", enforce_first_letter_match},
 				{"resultLimit", result_limit},
 				{"datasetCount", dataset_count},
 				{"elementCount", total_element_count},
-				{"startUpTime", init_timer.get()}
+				{"startupTime", init_timer.get()}
 			}).dump(4),
 			"application/json"
 		);
