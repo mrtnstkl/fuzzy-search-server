@@ -313,6 +313,10 @@ namespace fuzzy
 			{
 				return data_;
 			}
+			uint64_t size() const
+			{
+				return elements_;
+			}
 		};
 
 		// maps ngram tokens to element buckets
@@ -321,10 +325,12 @@ namespace fuzzy
 		std::vector<db_entry<T>> data_;
 
 		id_type id_counter_ = 0;
+		bool ready_ = false;
 
 		const struct {
 			const int ngram_size;
 			bool first_letter_opt;
+			uint64_t max_bucket_size;
 		} options_;
 
 		void add_to_index(const std::string& name, id_type id)
@@ -369,6 +375,18 @@ namespace fuzzy
 			}
 		}
 
+		void remove_overfull_buckets()
+		{
+			if (options_.max_bucket_size == UINT64_MAX)
+			{
+				return;
+			}
+			const auto max = options_.max_bucket_size;
+			std::erase_if(database<T>::inverted_index_,
+				[max](const std::pair<ngram_token, typename database<T>::element_bucket> &entry)
+				{ return entry.second.size() > max; });
+		}
+
 		virtual void add(std::string name, T&& meta, id_type id)
 		{
 			if (name.empty())
@@ -379,12 +397,19 @@ namespace fuzzy
 			data_.resize(id + 1);
 			data_[id].name = std::move(name);
 			data_[id].meta = meta;
+			ready_ = false;
 		}
 
 	public:
-		database(int ngram_size = 2, bool first_letter_opt = true)
-			: options_(ngram_size, first_letter_opt)
+		database(int ngram_size = 2, bool first_letter_opt = true, uint64_t max_bucket_size = UINT64_MAX)
+			: options_(ngram_size, first_letter_opt, max_bucket_size)
 		{
+		}
+
+		virtual void build()
+		{
+			remove_overfull_buckets();
+			ready_ = true;
 		}
 
 		void add(std::string_view name, T meta)
@@ -398,6 +423,11 @@ namespace fuzzy
 
 		virtual result_collection<T> fuzzy_search(const std::string& query, size_t truncate = 0)
 		{
+			if (!ready_)
+			{
+				build();
+			}
+
 			// for an empty query, return an empty result
 			if (query.empty())
 			{
@@ -486,7 +516,6 @@ namespace fuzzy
 	class sorted_database : public database<T>
 	{
 	protected:
-		bool ready_ = false;
 
 		const struct {
 			size_t result_limit;
@@ -495,12 +524,12 @@ namespace fuzzy
 
 		void add(std::string name, T&& meta, id_type id) override
 		{
-			assert(!ready_ || !"Inserting into a sorted database rebuilds everything, so dont do it.");
+			assert(!database<T>::ready_ || !"Inserting into a sorted database rebuilds everything, so dont do it.");
 			if (name.empty())
 			{
 				return;
 			}
-			ready_ = false;
+			database<T>::ready_ = false;
 			database<T>::data_.resize(id + 1);
 			database<T>::data_[id].name = std::move(name);
 			database<T>::data_[id].meta = meta;
@@ -534,11 +563,11 @@ namespace fuzzy
 	public:
 		using database<T>::add;
 
-		sorted_database(int ngram_size = 2, size_t result_limit = 100, bool first_letter_opt = true)
-			: database<T>(ngram_size, first_letter_opt), options_(result_limit)
+		sorted_database(int ngram_size = 2, size_t result_limit = 100, bool first_letter_opt = true, uint64_t max_bucket_size = UINT64_MAX)
+			: database<T>(ngram_size, first_letter_opt, max_bucket_size), options_(result_limit)
 		{}
 
-		void build()
+		void build() override
 		{
 			// sort data
 			std::sort(
@@ -552,12 +581,15 @@ namespace fuzzy
 			{
 				database<T>::add_to_index(database<T>::data_[id].name, id);
 			}
-			ready_ = true;
+
+			database<T>::remove_overfull_buckets();
+
+			database<T>::ready_ = true;
 		}
 
 		result_collection<T> exact_search(const std::string& query, size_t page_number = 0, size_t page_size = 0)
 		{
-			if (!ready_)
+			if (!database<T>::ready_)
 			{
 				build();
 			}
@@ -570,7 +602,7 @@ namespace fuzzy
 
 		result_collection<T> completion_search(const std::string& query, size_t page_number = 0, size_t page_size = 0)
 		{
-			if (!ready_)
+			if (!database<T>::ready_)
 			{
 				build();
 			}
@@ -585,14 +617,7 @@ namespace fuzzy
 			return extract_page(range, page_number, page_size);
 		}
 
-		result_collection<T> fuzzy_search(const std::string& query, size_t truncate = 0) override
-		{
-			if (!ready_)
-			{
-				build();
-			}
-			return database<T>::fuzzy_search(query, truncate);
-		}
+		using database<T>::fuzzy_search;
 	};
 
 }

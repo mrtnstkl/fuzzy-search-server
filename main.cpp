@@ -13,7 +13,7 @@
 #include "dataset.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
-#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bi | -tri | -tetra] [-fl] [-disk] [-dc]" << std::endl
+#define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bc BUCKET_CAPACITY] [-bi | -tri | -tetra] [-fl] [-disk] [-dc]" << std::endl
 
 std::atomic_bool quit = false;
 
@@ -61,6 +61,7 @@ int main(int argc, char const *argv[])
 	bool enforce_first_letter_match = false;
 	bool check_duplicates = false;
 	int result_limit = 100;
+	long bucket_capacity = 1000;
 	const char* name_field = "name";
 	std::vector<const char*> dataset_paths;
 	for (int i = 1; i < argc; i++)
@@ -126,6 +127,18 @@ int main(int argc, char const *argv[])
 			++i;
 			continue;
 		}
+		if (arg == "-bc" || arg == "-bucket-cap")
+		{
+			if (i + 1 >= argc)
+			{
+				std::cerr << "Missing parameter for " << arg << std::endl;
+				PRINT_USAGE(argv[0]);
+				return 1;
+			}
+			bucket_capacity = atol(argv[i + 1]);
+			++i;
+			continue;
+		}
 		if (arg == "-nf" || arg == "-name-field")
 		{
 			if (i + 1 >= argc)
@@ -152,7 +165,7 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 
-	fuzzy::sorted_database<dataset_entry> database(ngram_size, result_limit > 0 ? result_limit : SIZE_MAX, enforce_first_letter_match);
+	fuzzy::sorted_database<dataset_entry> database(ngram_size, result_limit > 0 ? result_limit : SIZE_MAX, enforce_first_letter_match, bucket_capacity > 0 ? bucket_capacity : UINT64_MAX);
 	timer init_timer;
 
 	std::signal(SIGINT, signal_handler);
@@ -177,6 +190,7 @@ int main(int argc, char const *argv[])
 	std::cout << "port set to " << port << std::endl;
 	std::cout << "name field set to \"" << name_field << "\"" << std::endl;
 	std::cout << "max page size set to " << (result_limit > 0 ? std::to_string(result_limit) : "unlimited") << std::endl;
+	std::cout << "bucket capacity set to " << (bucket_capacity > 0 ? std::to_string(bucket_capacity) : "unlimited") << std::endl;
 	std::cout << "using " << (ngram_size == 2 ? "bigrams" : (ngram_size == 3 ? "trigrams" : "tetragrams")) << std::endl;
 	if (enforce_first_letter_match)
 		std::cout << "enforcing first letter match for fuzzy search" << std::endl;
@@ -185,7 +199,7 @@ int main(int argc, char const *argv[])
 	else
 		std::cout << "using disk mode: do not modify dataset files while the program is running!" << std::endl;
 	if (check_duplicates)
-		std::cout << "enabled entry duplication check" << std::endl;
+		std::cout << "entry duplication check enabled" << std::endl;
 	std::cout << std::endl;
 
 
@@ -195,7 +209,7 @@ int main(int argc, char const *argv[])
 	unsigned current_dataset_duplicates = 0;
 
 	std::unordered_set<size_t> element_hashset; 
-	std::function<void(dataset::element_id id, const std::string &str)> element_handler =
+	std::function<void(dataset::element_id, const std::string&)> element_handler =
 		[&](dataset::element_id id, const std::string &str)
 		{
 			try
@@ -230,8 +244,7 @@ int main(int argc, char const *argv[])
 	{
 		timer parse_timer;
 		std::cout << "parsing dataset \"" << path << '"' << std::endl;
-		auto new_dataset = std::make_unique<dataset>(
-			path, keep_elements_in_memory, quit, element_handler);
+		auto new_dataset = std::make_unique<dataset>(path, keep_elements_in_memory, quit, element_handler);
 		RETURN_IF_QUIT(0);
 		if (new_dataset->ready())
 		{

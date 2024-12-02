@@ -13,13 +13,15 @@ I host an **[interactive demo](https://gnorts.xyz/osmpoidemo/)** on my website. 
 ## Usage
 
 ```
-./fuzzy-search-server DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bi | -tri | -tetra] [-fl] [-disk] [-dc]
+./fuzzy-search-server DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT]
+            [-bc BUCKET_CAPACITY] [-bi | -tri | -tetra] [-fl] [-disk] [-dc]
 ```
 
 - `DATASET`: The paths to the text files containing the data entries. Each line should be a separate JSON object with at least a name field.
 - `PORT` (optional): The port number on which the server should listen. Defaults to `8080`.
 - `NAME_FIELD` (optional): A custom name field. Default is "name". Each dataset entry should have this field.
 - `RESULT_LIMIT` (optional): Allows you to enforce a maximum page size for result lists. Default is `100`. Negative values or zero will remove the limit.
+- `BUCKET_CAPACITY` (optional): The maximum number of elements that can be associated with a specific n-gram. If an n-gram exceeds this limit, it will no longer be used for matching. This greatly improves performance for datasets with many identical substrings. Default is `10000`. Negative values or zero will remove the limit.
 - `-bi | -tri | -tetra` (optional): The n-gram-size used by the fuzzy search. Defaults to `-bi`. Higher sizes can drastically improve speed, but might miss out on some more distant matches.
 - `-fl` (optional): If set, fuzzy search will only consider elements that start with the same letter. This improves performance.
 - `-disk` (optional): If set, only element names will be kept in memory. So when elements are requested, they will be read from disk. Reduces memory use (especially for datasets with large JSON objects) at the cost of performance.
