@@ -13,6 +13,11 @@
 namespace fuzzy
 {
 	using ngram_token = uint32_t;
+	using ngram_char = uint8_t;
+
+	using string = std::basic_string<ngram_char>;
+	using string_view = std::basic_string_view<ngram_char>;
+
 	using id_type = uint32_t;
 
 	constexpr size_t bigram_limit = 6;
@@ -20,119 +25,85 @@ namespace fuzzy
 
 	namespace internal
 	{
-		inline ngram_token make_token(char c1 = '\0', char c2 = '\0', char c3 = '\0', char c4 = '\0')
+		inline ngram_token make_token(ngram_char c1 = '\0', ngram_char c2 = '\0', ngram_char c3 = '\0', ngram_char c4 = '\0')
 		{
 			return ngram_token(c1) << 0 | ngram_token(c2) << 8 | ngram_token(c3) << 16 | ngram_token(c4) << 24;
 		}
 
-		inline char to_lower(const char c)
+		inline fuzzy::string to_ngram_string(const std::string_view str)
 		{
-			switch (c)
+			// assumes str to be utf-8 encoded
+			const uint8_t* ptr = (uint8_t*)str.data();
+			const uint8_t* end = (uint8_t*)(ptr + str.size());			
+			fuzzy::string ngram_str;
+
+			while (ptr < end)
 			{
-			case 'A':
-				return 'a';
-			case 'B':
-				return 'b';
-			case 'C':
-				return 'c';
-			case 'D':
-				return 'd';
-			case 'E':
-				return 'e';
-			case 'F':
-				return 'f';
-			case 'G':
-				return 'g';
-			case 'H':
-				return 'h';
-			case 'I':
-				return 'i';
-			case 'J':
-				return 'j';
-			case 'K':
-				return 'k';
-			case 'L':
-				return 'l';
-			case 'M':
-				return 'm';
-			case 'N':
-				return 'n';
-			case 'O':
-				return 'o';
-			case 'P':
-				return 'p';
-			case 'Q':
-				return 'q';
-			case 'R':
-				return 'r';
-			case 'S':
-				return 's';
-			case 'T':
-				return 't';
-			case 'U':
-				return 'u';
-			case 'V':
-				return 'v';
-			case 'W':
-				return 'w';
-			case 'X':
-				return 'x';
-			case 'Y':
-				return 'y';
-			case 'Z':
-				return 'z';
-			default:
-				return c;
+				uint32_t char_value;
+				if ((ptr[0] & 0b10000000) == 0)
+				{
+					// single byte utf-8 character
+					ngram_str.push_back(ngram_char(tolower(ptr[0])));
+					ptr += 1;
+					continue;
+				}
+				else if ((ptr[0] & 0b11100000) == 0b11000000)
+				{
+					// two byte utf-8 character
+					char_value = (uint16_t(ptr[0] & 0b00011111) << 6) | (ptr[1] & 0b00111111);
+					ptr += 2;
+				}
+				else if ((ptr[0] & 0b11110000) == 0b11100000)
+				{
+					// three byte utf-8 character
+					char_value = (uint16_t(ptr[0] & 0b00001111) << 12) | (uint16_t(ptr[1] & 0b00111111) << 6) | (ptr[2] & 0b00111111);
+					ptr += 3;
+				}
+				else if ((ptr[0] & 0b11111000) == 0b11110000)
+				{
+					// four byte utf-8 character
+					char_value = (uint16_t(ptr[0] & 0b00000111) << 18) | (uint16_t(ptr[1] & 0b00111111) << 12) | (uint16_t(ptr[2] & 0b00111111) << 6) | (ptr[3] & 0b00111111);
+					ptr += 4;
+				}
+				else
+				{
+					// invalid utf-8 character
+					++ptr;
+					continue;
+				}
+				ngram_str.push_back(ngram_char(1 + char_value % 31));
 			}
+			return ngram_str;
 		}
 
-		inline bool case_insensitive_compare(const std::string_view a, const std::string_view b)
+		inline bool string_compare(const fuzzy::string_view a, const fuzzy::string_view b)
 		{
 			for (uint16_t i = 0; i < std::min(a.size(), b.size()); ++i)
 			{
-				const char ac = to_lower(a[i]);
-				const char bc = to_lower(b[i]);
-				if (ac < bc)
+				if (a[i] < b[i])
 					return true;
-				if (ac > bc)
+				if (a[i] > b[i])
 					return false;
 			}
 			return a.size() < b.size();
 		}
 
-		inline bool case_insensitive_equals(const std::string_view a, const std::string_view b)
-		{
-			if (a.size() != b.size())
-				return false;
-			for (uint16_t i = 0; i < a.size(); ++i)
-			{
-				if (to_lower(a[i]) != to_lower(b[i]))
-					return false;
-			}
-			return true;
-		}
-
-		inline bool case_insensitive_starts_with(const std::string_view str, const std::string_view sub_str)
+		inline bool string_starts_with(const fuzzy::string_view str, const fuzzy::string_view sub_str)
 		{
 			if (str.size() < sub_str.size())
 				return false;
 			for (uint16_t i = 0; i < sub_str.size(); ++i)
 			{
-				if (to_lower(str[i]) != to_lower(sub_str[i]))
+				if (str[i] != sub_str[i])
 					return false;
 			}
 			return true;
 		}
 
-		inline int osa_distance(std::string_view s1, std::string_view s2)
+		inline int osa_distance(fuzzy::string_view s1, fuzzy::string_view s2)
 		{
-			std::string s1_lower = std::string(s1);
-			std::string s2_lower = std::string(s2);
-			std::transform(s1_lower.begin(), s1_lower.end(), s1_lower.begin(), to_lower);
-			std::transform(s2_lower.begin(), s2_lower.end(), s2_lower.begin(), to_lower);
-
-			const int len_s1 = s1_lower.size();
-			const int len_s2 = s2_lower.size();
+			const int len_s1 = s1.size();
+			const int len_s2 = s2.size();
 
 			std::vector<int> prev(len_s2 + 1);
 			std::vector<int> curr(len_s2 + 1);
@@ -147,14 +118,14 @@ namespace fuzzy
 				curr[0] = i;
 				for (int j = 1; j <= len_s2; j++)
 				{
-					const int cost = (s1_lower[i - 1] == s2_lower[j - 1]) ? 0 : 1;
+					const int cost = (s1[i - 1] == s2[j - 1]) ? 0 : 1;
 					curr[j] = std::min({
 						prev[j] + 1,        // deletion
 						curr[j - 1] + 1,    // insertion
 						prev[j - 1] + cost  // substitution
 					});
 
-					if (s1_lower[i - 1] == s2_lower[j - 2] && s1_lower[i - 2] == s2_lower[j - 1] && i > 1 && j > 1)
+					if (s1[i - 1] == s2[j - 2] && s1[i - 2] == s2[j - 1] && i > 1 && j > 1)
 					{
 						curr[j] = std::min(curr[j], prev[j - 2] + 1); // transposition
 					}
@@ -164,7 +135,7 @@ namespace fuzzy
 			return prev[len_s2];
 		}
 
-		inline std::vector<ngram_token> ngram_tokens(const std::string_view str, const int ngram_size)
+		inline std::vector<ngram_token> ngram_tokens(const fuzzy::string_view str, const int ngram_size)
 		{
 			std::vector<ngram_token> tokens;
 			switch (ngram_size)
@@ -216,7 +187,7 @@ namespace fuzzy
 	template <typename T>
 	struct db_entry
 	{
-		std::string name;
+		fuzzy::string name;
 		T meta;
 	};
 
@@ -377,7 +348,7 @@ namespace fuzzy
 			uint64_t max_bucket_size;
 		} options_;
 
-		void add_to_index(const std::string& name, id_type id)
+		void add_to_index(const fuzzy::string& name, id_type id)
 		{
 			const auto tokens = ngram_tokens(name, options_.ngram_size);
 			for (auto token : tokens)
@@ -398,15 +369,17 @@ namespace fuzzy
 				{ return entry.second.size() > max; });
 		}
 
-		virtual void add(std::string name, T&& meta, id_type id)
+		virtual void add(std::string_view name, T&& meta, id_type id)
 		{
 			if (name.empty())
 			{
 				return;
 			}
-			add_to_index(name, id);
+			const fuzzy::string internal_name = to_ngram_string(name);
+			
+			add_to_index(internal_name, id);
 			data_.resize(id + 1);
-			data_[id].name = std::move(name);
+			data_[id].name = std::move(internal_name);
 			data_[id].meta = meta;
 			ready_ = false;
 		}
@@ -425,11 +398,11 @@ namespace fuzzy
 
 		void add(std::string_view name, T meta)
 		{
-			add(std::string(name), std::move(meta), id_counter_++);
+			add(name, std::move(meta), id_counter_++);
 		}
 		void add(const char *name, T meta)
 		{
-			add(std::string(name), std::move(meta), id_counter_++);
+			add(name, std::move(meta), id_counter_++);
 		}
 
 		virtual result_collection<T> fuzzy_search(const std::string& query, size_t truncate = 0)
@@ -445,7 +418,8 @@ namespace fuzzy
 				return result_collection<T>();
 			}
 
-			const std::vector<ngram_token> query_tokens = ngram_tokens(query, options_.ngram_size);
+			const fuzzy::string query_internal = to_ngram_string(query);
+			const std::vector<ngram_token> query_tokens = ngram_tokens(query_internal, options_.ngram_size);
 
 			std::vector<element_bucket *> element_buckets;
 			for (auto token : query_tokens)
@@ -475,11 +449,12 @@ namespace fuzzy
 			for (id_type id : potential_matches)
 			{
 				// to speed things up, ignore words that dont start with the same letter
-				if (options_.first_letter_opt && to_lower(query[0]) != to_lower(data_[id].name[0]))
+				if (options_.first_letter_opt && query_internal[0] != data_[id].name[0])
 				{
 					continue;
 				}
-				results.add(&data_[id],	osa_distance(query, std::string_view(data_[id].name.c_str(), std::min(data_[id].name.length(), truncate))));
+				results.add(&data_[id],	osa_distance(query_internal,
+					fuzzy::string_view(data_[id].name.c_str(), std::min(data_[id].name.length(), truncate))));
 			}
 			return results;
 		}
@@ -495,16 +470,17 @@ namespace fuzzy
 		} options_;
 
 
-		void add(std::string name, T&& meta, id_type id) override
+		void add(std::string_view name, T&& meta, id_type id) override
 		{
 			assert(!database<T>::ready_ || !"Inserting into a sorted database rebuilds everything, so dont do it.");
 			if (name.empty())
 			{
 				return;
 			}
+			const fuzzy::string internal_name = internal::to_ngram_string(name);
 			database<T>::ready_ = false;
 			database<T>::data_.resize(id + 1);
-			database<T>::data_[id].name = std::move(name);
+			database<T>::data_[id].name = std::move(internal_name);
 			database<T>::data_[id].meta = meta;
 		}
 
@@ -546,7 +522,7 @@ namespace fuzzy
 			std::sort(
 				database<T>::data_.begin(), database<T>::data_.end(),
 				[](const db_entry<T> &a, const db_entry<T> &b)
-				{ return case_insensitive_compare(a.name, b.name); });
+				{ return string_compare(a.name, b.name); });
 
 			// build inverted index
 			database<T>::inverted_index_.clear();
@@ -566,10 +542,11 @@ namespace fuzzy
 			{
 				build();
 			}
+			const fuzzy::string query_internal = internal::to_ngram_string(query);
 			auto range = std::ranges::equal_range(
-				database<T>::data_, db_entry<T>{query, T{}},
+				database<T>::data_, db_entry<T>{query_internal, T{}},
 				[](const db_entry<T> &a, const db_entry<T> &b)
-				{ return case_insensitive_compare(a.name, b.name); });
+				{ return string_compare(a.name, b.name); });
 			return extract_page(range, page_number, page_size);
 		}
 
@@ -579,13 +556,14 @@ namespace fuzzy
 			{
 				build();
 			}
+			const fuzzy::string query_internal = internal::to_ngram_string(query);
 			auto range = std::ranges::equal_range(
-				database<T>::data_, db_entry<T>{query, T{}},
+				database<T>::data_, db_entry<T>{query_internal, T{}},
 				[truncation_length = query.size()](const db_entry<T> &a, const db_entry<T> &b)
 				{
-					return case_insensitive_compare(
-						std::string_view(a.name.c_str(), std::min(a.name.size(), truncation_length)),
-						std::string_view(b.name.c_str(), std::min(b.name.size(), truncation_length)));
+					return string_compare(
+						fuzzy::string_view(a.name.data(), std::min(a.name.size(), truncation_length)),
+						fuzzy::string_view(b.name.data(), std::min(b.name.size(), truncation_length)));
 				});
 			return extract_page(range, page_number, page_size);
 		}

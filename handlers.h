@@ -63,9 +63,7 @@ httplib::Server::Handler fuzzy_handler(fuzzy::sorted_database<T> &database)
 		{
 			query_result = database.fuzzy_search(query_string);
 		}
-		std::cout
-			<< "fuzzy-searched " << query_string << " in " << query_timer.get() << "ms: "
-			<< (query_result.empty() ? "not found" : query_result.best()[0].element->name) << std::endl;
+		std::cout << "fuzzy-searched " << query_string << " in " << query_timer.get() << "ms" << std::endl;
 		if (query_result.empty())
 		{
 			res.status = 404;
@@ -94,9 +92,7 @@ httplib::Server::Handler fuzzy_list_handler(fuzzy::sorted_database<T> &database)
 		{
 			query_result = database.fuzzy_search(query_string);
 		}
-		std::cout
-			<< "fuzzy-searched " << query_string << " in " << query_timer.get() << "ms: "
-			<< (query_result.empty() ? "not found" : query_result.best()[0].element->name) << std::endl;
+		std::cout << "fuzzy-searched " << query_string << " in " << query_timer.get() << "ms" << std::endl;
 		res.set_content(process_results(query_result.best(), true), "application/json");
 	};
 }
@@ -115,9 +111,7 @@ httplib::Server::Handler fuzzycomplete_handler(fuzzy::sorted_database<T> &databa
 		const auto query_string = req.get_param_value("q");
 		timer query_timer;
 		const auto result_list = database.fuzzy_search(query_string, query_string.length()).extract(0, 1, true);
-		std::cout
-			<< "fuzzycomplete-searched " << query_string << " in " << query_timer.get() << "ms: "
-			<< (result_list.empty() ? "not found" : result_list[0].element->name) << std::endl;
+		std::cout << "fuzzycomplete-searched " << query_string << " in " << query_timer.get() << "ms" << std::endl;
 		if (result_list.empty())
 		{
 			res.status = 404;
@@ -144,9 +138,7 @@ httplib::Server::Handler fuzzycomplete_list_handler(fuzzy::sorted_database<T> &d
 		timer query_timer;
 		// todo: dont hardcode max_count
 		const auto result_list = database.fuzzy_search(query_string, query_string.length()).extract(0, 50, true, similarity_tolerance);
-		std::cout
-			<< "fuzzycomplete-searched " << query_string << " in " << query_timer.get() << "ms: "
-			<< (result_list.empty() ? "not found" : result_list[0].element->name) << std::endl;
+		std::cout << "fuzzycomplete-searched " << query_string << " in " << query_timer.get() << "ms" << std::endl;
 		res.set_content(process_results(result_list, true), "application/json");
 	};
 }
