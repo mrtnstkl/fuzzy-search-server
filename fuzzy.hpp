@@ -164,6 +164,50 @@ namespace fuzzy
 			return prev[len_s2];
 		}
 
+		inline std::vector<ngram_token> ngram_tokens(const std::string_view str, const int ngram_size)
+		{
+			std::vector<ngram_token> tokens;
+			switch (ngram_size)
+			{
+			case 2:
+				// bigrams
+				for (size_t i = 0; i + 1 < str.length(); i++)
+					tokens.push_back(make_token(str[i], str[i + 1]));
+				break;
+			case 3:
+				// trigrams
+				for (size_t i = 0; i + 2 < str.length(); i++)
+					tokens.push_back(make_token(str[i], str[i + 1], str[i + 2]));
+				// for short words, also do bigrams
+				if (str.length() <= bigram_limit)
+				{
+					for (size_t i = 0; i + 1 < str.length(); i++)
+						tokens.push_back(make_token(str[i], str[i + 1]));
+				}
+				break;
+			case 4:
+				// tetragrams
+				for (size_t i = 0; i + 3 < str.length(); i++)
+					tokens.push_back(make_token(str[i], str[i + 1], str[i + 2], str[i + 3]));
+				// for short words, also do trigrams
+				if (str.length() <= trigram_limit)
+				{
+					for (size_t i = 0; i + 2 < str.length(); i++)
+						tokens.push_back(make_token(str[i], str[i + 1], str[i + 2]));
+				}
+				// ...and bigrams
+				if (str.length() <= bigram_limit)
+				{
+					for (size_t i = 0; i + 1 < str.length(); i++)
+						tokens.push_back(make_token(str[i], str[i + 1]));
+				}
+				break;
+			default:
+				abort();
+			}
+			return tokens;
+		}
+
 	}
 
 	using namespace internal;
@@ -335,43 +379,10 @@ namespace fuzzy
 
 		void add_to_index(const std::string& name, id_type id)
 		{
-			switch (options_.ngram_size)
+			const auto tokens = ngram_tokens(name, options_.ngram_size);
+			for (auto token : tokens)
 			{
-			case 2:
-				// bigrams
-				for (size_t i = 0; i + 1 < name.length(); i++)
-					inverted_index_[make_token(name[i], name[i + 1])].add(id, name.length());
-				break;
-			case 3:
-				// trigrams
-				for (size_t i = 0; i + 2 < name.length(); i++)
-					inverted_index_[make_token(name[i], name[i + 1], name[i + 2])].add(id, name.length());
-				// for short words, also do bigrams
-				if (name.length() <= bigram_limit)
-				{
-					for (size_t i = 0; i + 1 < name.length(); i++)
-						inverted_index_[make_token(name[i], name[i + 1])].add(id, name.length());
-				}
-				break;
-			case 4:
-				// tetragrams
-				for (size_t i = 0; i + 3 < name.length(); i++)
-					inverted_index_[make_token(name[i], name[i + 1], name[i + 2], name[i + 3])].add(id, name.length());
-				// for short words, also do trigrams
-				if (name.length() <= trigram_limit)
-				{
-					for (size_t i = 0; i + 2 < name.length(); i++)
-						inverted_index_[make_token(name[i], name[i + 1], name[i + 2])].add(id, name.length());
-				}
-				// ...and bigrams
-				if (name.length() <= bigram_limit)
-				{
-					for (size_t i = 0; i + 1 < name.length(); i++)
-						inverted_index_[make_token(name[i], name[i + 1])].add(id, name.length());
-				}
-				break;
-			default:
-				abort();
+				inverted_index_[token].add(id, name.length());
 			}
 		}
 
@@ -434,45 +445,7 @@ namespace fuzzy
 				return result_collection<T>();
 			}
 
-			std::vector<ngram_token> query_tokens;
-			switch (options_.ngram_size)
-			{
-			case 2:
-				// bigrams
-				for (size_t i = 0; i + 1 < query.length(); i++)
-					query_tokens.push_back(make_token(query[i], query[i + 1]));
-				break;
-			case 3:
-				// trigrams
-				for (size_t i = 0; i + 2 < query.length(); i++)
-					query_tokens.push_back(make_token(query[i], query[i + 1], query[i + 2]));
-				// for short words, also do bigrams
-				if (query.length() <= bigram_limit)
-				{
-					for (size_t i = 0; i + 1 < query.length(); i++)
-						query_tokens.push_back(make_token(query[i], query[i + 1]));
-				}
-				break;
-			case 4:
-				// tetragrams
-				for (size_t i = 0; i + 3 < query.length(); i++)
-					query_tokens.push_back(make_token(query[i], query[i + 1], query[i + 2], query[i + 3]));
-				// for short words, also do trigrams
-				if (query.length() <= trigram_limit)
-				{
-					for (size_t i = 0; i + 2 < query.length(); i++)
-						query_tokens.push_back(make_token(query[i], query[i + 1], query[i + 2]));
-				}
-				// ...and bigrams
-				if (query.length() <= bigram_limit)
-				{
-					for (size_t i = 0; i + 1 < query.length(); i++)
-						query_tokens.push_back(make_token(query[i], query[i + 1]));
-				}
-				break;
-			default:
-				abort();
-			}
+			const std::vector<ngram_token> query_tokens = ngram_tokens(query, options_.ngram_size);
 
 			std::vector<element_bucket *> element_buckets;
 			for (auto token : query_tokens)
