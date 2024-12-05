@@ -420,9 +420,10 @@ namespace fuzzy
 
 			const fuzzy::string query_internal = to_ngram_string(query);
 			const std::vector<ngram_token> query_tokens = ngram_tokens(query_internal, options_.ngram_size);
+			const std::set<ngram_token> query_token_set(query_tokens.begin(), query_tokens.end());
 
 			std::vector<element_bucket *> element_buckets;
-			for (auto token : query_tokens)
+			for (auto token : query_token_set)
 			{
 				auto bucket = inverted_index_.find(token);
 				if (bucket != inverted_index_.end())
