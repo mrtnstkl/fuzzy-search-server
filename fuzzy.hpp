@@ -230,7 +230,7 @@ namespace fuzzy
 	class result_collection
 	{
 		std::map<int, result_list<T>> results_;
-		size_t size_;
+		size_t size_ = 0;
 
 	public:
 		void add(db_entry_reference<T> element, int distance)
@@ -369,6 +369,37 @@ namespace fuzzy
 				{ return entry.second.size() > max; });
 		}
 
+		std::unordered_map<id_type, uint8_t> potential_matches(const std::set<ngram_token>& query_token_set)
+		{
+			std::vector<element_bucket *> element_buckets;
+			for (auto token : query_token_set)
+			{
+				auto bucket = inverted_index_.find(token);
+				if (bucket != inverted_index_.end())
+				{
+					element_buckets.push_back(&bucket->second);
+				}
+			}
+			std::unordered_map<id_type, uint8_t> potential_matches;
+			for (element_bucket *element_bucket : element_buckets)
+			{
+				for (const auto& [length, id_list] : element_bucket->get())
+				{
+					for (id_type id : id_list)
+					{
+						potential_matches[id] += 1;
+					}
+				}
+			}
+			return potential_matches;
+		}
+
+		std::unordered_map<id_type, uint8_t> potential_matches(const std::vector<ngram_token>& query_tokens)
+		{
+			const std::set<ngram_token> query_token_set(query_tokens.begin(), query_tokens.end());
+			return potential_matches(query_token_set);
+		}
+
 		virtual void add(std::string_view name, T&& meta, id_type id)
 		{
 			if (name.empty())
@@ -420,34 +451,12 @@ namespace fuzzy
 
 			const fuzzy::string query_internal = to_ngram_string(query);
 			const std::vector<ngram_token> query_tokens = ngram_tokens(query_internal, options_.ngram_size);
-			const std::set<ngram_token> query_token_set(query_tokens.begin(), query_tokens.end());
-
-			std::vector<element_bucket *> element_buckets;
-			for (auto token : query_token_set)
-			{
-				auto bucket = inverted_index_.find(token);
-				if (bucket != inverted_index_.end())
-				{
-					element_buckets.push_back(&bucket->second);
-				}
-			}
-
-			// build list of word ids that share an ngram
-			std::unordered_set<id_type> potential_matches;
-			for (element_bucket *element_bucket : element_buckets)
-			{
-				for (const auto& [length, id_list] : element_bucket->get())
-				{
-					for (id_type id : id_list)
-					{
-						potential_matches.insert(id);
-					}
-				}
-			}
+			std::set<ngram_token> query_token_set(query_tokens.begin(), query_tokens.end());
+			const auto matches = potential_matches(query_token_set);
 
 			truncate = truncate ? truncate : SIZE_MAX;
 			result_collection<T> results;
-			for (id_type id : potential_matches)
+			for (auto [id, count] : matches)
 			{
 				// to speed things up, ignore words that dont start with the same letter
 				if (options_.first_letter_opt && query_internal[0] != data_[id].name[0])
