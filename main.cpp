@@ -1,16 +1,12 @@
-#include <fstream>
 #include <csignal>
-#include <functional>
 #include <string>
-#include <unordered_set>
 
 #include "httplib.h"
 #include "json.hpp"
 
-#include "fuzzy.hpp"
 #include "util.h"
 #include "handlers.h"
-#include "dataset.h"
+#include "fss.h"
 
 #define RETURN_IF_QUIT(x) if (quit) return x 
 #define PRINT_USAGE(argv0) std::cerr << "Usage: " << argv0 << " DATASET... [-p PORT] [-nf NAME_FIELD] [-l RESULT_LIMIT] [-bc BUCKET_CAPACITY] [-bi | -tri | -tetra] [-fl] [-disk] [-dc]" << std::endl
@@ -18,7 +14,6 @@
 std::atomic_bool quit = false;
 
 httplib::Server server;
-std::vector<std::unique_ptr<dataset>> datasets;
 
 void signal_handler(int signal)
 {
@@ -29,21 +24,6 @@ void signal_handler(int signal)
 		server.stop();
 	}
 }
-
-struct dataset_entry
-{
-	dataset::element_id element_id;
-	uint16_t dataset_id;
-	dataset_entry(dataset::element_id element_id = 0, uint16_t dataset_id = 0)
-		: element_id(element_id), dataset_id(dataset_id)
-	{
-	}
-	friend std::ostream& operator<<(std::ostream& os, const dataset_entry& dse)
-	{
-		os << datasets[dse.dataset_id]->get_element(dse.element_id);
-		return os;
-	}
-};
 
 
 int main(int argc, char const *argv[])
@@ -165,18 +145,18 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 
-	fuzzy::sorted_database<dataset_entry> database(ngram_size, result_limit > 0 ? result_limit : SIZE_MAX, enforce_first_letter_match, bucket_capacity > 0 ? bucket_capacity : UINT64_MAX);
+	fuzzy_search_server fss(ngram_size, result_limit > 0 ? result_limit : SIZE_MAX, bucket_capacity > 0 ? bucket_capacity : UINT64_MAX);
 	timer init_timer;
 
 	std::signal(SIGINT, signal_handler);
-	server.Get("/fuzzy", fuzzy_handler(database));
-	server.Get("/fuzzy/list", fuzzy_list_handler(database));
-	server.Get("/fuzzycomplete", fuzzycomplete_handler(database));
-	server.Get("/fuzzycomplete/list", fuzzycomplete_list_handler(database));
-	server.Get("/exact", exact_handler(database));
-	server.Get("/exact/list", exact_list_handler(database));
-	server.Get("/complete", completion_handler(database));
-	server.Get("/complete/list", completion_list_handler(database));
+	server.Get("/fuzzy", fuzzy_handler(fss));
+	server.Get("/fuzzy/list", fuzzy_list_handler(fss));
+	server.Get("/fuzzycomplete", fuzzycomplete_handler(fss));
+	server.Get("/fuzzycomplete/list", fuzzycomplete_list_handler(fss));
+	server.Get("/exact", exact_handler(fss));
+	server.Get("/exact/list", exact_list_handler(fss));
+	server.Get("/complete", completion_handler(fss));
+	server.Get("/complete/list", completion_list_handler(fss));
 	server.set_post_routing_handler([](const auto&, auto& res) {
 		res.set_header("Access-Control-Allow-Origin", "*");
 		return true;
@@ -186,6 +166,17 @@ int main(int argc, char const *argv[])
 		res.set_header("Access-Control-Allow-Methods", "GET");
 		res.set_header("Access-Control-Allow-Headers", "Content-Type");
 	});
+
+	std::regex name_field_regex;
+	try
+	{
+		name_field_regex = std::regex(name_field);
+	}
+	catch (const std::exception &e)
+	{
+		std::cerr << "Invalid name field regex: " << e.what() << std::endl;
+		return 1;
+	}
 
 	std::cout << "port set to " << port << std::endl;
 	std::cout << "name field set to \"" << name_field << "\"" << std::endl;
@@ -202,77 +193,15 @@ int main(int argc, char const *argv[])
 		std::cout << "entry duplication check enabled" << std::endl;
 	std::cout << std::endl;
 
-
-	unsigned dataset_count = 0;
-	unsigned total_element_count = 0;
-	unsigned current_dataset_element_count = 0;
-	unsigned current_dataset_duplicates = 0;
-
-	std::unordered_set<size_t> element_hashset; 
-	std::function<void(dataset::element_id, const std::string&)> element_handler =
-		[&](dataset::element_id id, const std::string &str)
-		{
-			try
-			{
-				auto json = nlohmann::json::parse(str);
-				database.add(json[name_field].template get<std::string>(), dataset_entry{id, uint16_t(datasets.size())});
-				++current_dataset_element_count;
-			}
-			catch (const std::exception &e)
-			{
-				if (!str.empty())
-				{
-					std::cerr << "error while parsing line " << id << ": " << e.what() << std::endl;
-				}
-			}
-		};
-	if (check_duplicates)
-	{
-		element_handler =
-			[&, base_handler = element_handler, hasher = std::hash<std::string>{}]
-			(dataset::element_id id, const std::string &str)
-			{
-				if (element_hashset.insert(hasher(str)).second) [[likely]]
-					base_handler(id, str);
-				else
-					++current_dataset_duplicates;
-			};
-	}
-
 	// process datasets
 	for (const char* path : dataset_paths)
 	{
-		timer parse_timer;
-		std::cout << "parsing dataset \"" << path << '"' << std::endl;
-		auto new_dataset = std::make_unique<dataset>(path, keep_elements_in_memory, quit, element_handler);
-		RETURN_IF_QUIT(0);
-		if (new_dataset->ready())
-		{
-			std::cout << "parsed " << current_dataset_element_count << " entries in " << parse_timer.get() << "ms";
-			if (current_dataset_duplicates > 0) std::cout << " (" << current_dataset_duplicates << " duplicates)";
-			std::cout << std::endl;
-			datasets.push_back(std::move(new_dataset));
-			++dataset_count;
-			total_element_count += current_dataset_element_count;
-		}
-		else if (current_dataset_element_count > 0)
-		{
-			// A file error occurred during parsing.
-			// We don't want entries from broken files in our
-			// database, but we can't get them out anymore.
-			return 1; // ...So we abort
-		}
-		current_dataset_element_count = 0;
-		current_dataset_duplicates = 0;
+		bool ok = fss.load_dataset(path, keep_elements_in_memory, check_duplicates, name_field_regex);
+		if (!ok)
+			return 1;
 	}
-	element_hashset = std::unordered_set<size_t>();
-	std::cout << "processed " << total_element_count << " elements from " << dataset_count << "/" << dataset_paths.size() << " datasets" << std::endl;
 
-	std::cout << "preparing database" << std::endl;
-	timer db_init_timer;
-	database.build();
-	RETURN_IF_QUIT(0);
-	std::cout << "database prepared in " << db_init_timer.stop().get() << "ms" << std::endl;
+	fss.finalize();
 
 	std::cout << "\ninitialization took " << init_timer.stop().get() << "ms" << std::endl;
 
@@ -284,8 +213,6 @@ int main(int argc, char const *argv[])
 				{"duplicateCheck", check_duplicates},
 				{"firstLetterMatch", enforce_first_letter_match},
 				{"resultLimit", result_limit},
-				{"datasetCount", dataset_count},
-				{"elementCount", total_element_count},
 				{"startupTime", init_timer.get()}
 			}).dump(4),
 			"application/json"
@@ -298,6 +225,5 @@ int main(int argc, char const *argv[])
 		std::cerr << "failed to start server" << std::endl;
 	}
 
-	datasets.clear();
 	return 0;
 }

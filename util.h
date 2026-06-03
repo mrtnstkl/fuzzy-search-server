@@ -2,6 +2,8 @@
 
 #include <chrono>
 
+#include "json.hpp"
+
 class timer
 {
 	std::chrono::steady_clock::time_point start_, stop_;
@@ -36,3 +38,20 @@ public:
 		return v;
 	}
 };
+
+
+template<class UnaryFunction>
+void recursive_iterate(const nlohmann::json& j, UnaryFunction f)
+{
+	for(auto it = j.begin(); it != j.end(); ++it)
+	{
+		if (it->is_structured())
+		{
+			recursive_iterate(*it, f);
+		}
+		else
+		{
+			f(it);
+		}
+	}
+}

@@ -5,10 +5,9 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include <unordered_set>
+#include <set>
 #include <map>
 #include <algorithm>
-#include <ranges>
 
 namespace fuzzy
 {
@@ -416,6 +415,8 @@ namespace fuzzy
 		}
 
 	public:
+		using result_collection_type = result_collection<T>;
+
 		database(int ngram_size = 2, bool first_letter_opt = true, uint64_t max_bucket_size = UINT64_MAX)
 			: options_(ngram_size, first_letter_opt, max_bucket_size)
 		{
@@ -521,6 +522,7 @@ namespace fuzzy
 
 	public:
 		using database<T>::add;
+		using typename database<T>::result_collection_type;
 
 		sorted_database(int ngram_size = 2, size_t result_limit = 100, bool first_letter_opt = true, uint64_t max_bucket_size = UINT64_MAX)
 			: database<T>(ngram_size, first_letter_opt, max_bucket_size), options_(result_limit)
