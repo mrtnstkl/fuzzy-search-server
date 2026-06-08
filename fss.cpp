@@ -23,7 +23,10 @@ std::string fuzzy_search_server::format_results(const std::vector<fuzzy::result<
 	std::stringstream strstream;
 	if (!as_list)
 	{
-		assert(!results.empty());
+		if (results.empty())
+		{
+			return "";
+		}
 		print_element(results[0].element->meta, strstream);
 		return strstream.str();
 	}
