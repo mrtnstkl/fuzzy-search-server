@@ -343,7 +343,7 @@ namespace fuzzy
 
 		const struct {
 			const int ngram_size;
-			bool first_letter_opt;
+			bool first_letter_opt; // todo: make this an option for the search function instead of the whole database
 			uint64_t max_bucket_size;
 		} options_;
 
