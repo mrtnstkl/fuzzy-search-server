@@ -70,6 +70,7 @@ public:
 
 	static fuzzy_search_server from_config(const nlohmann::json &config, const fss_options &defaults = fss_options());
 
+	friend httplib::Server::Handler info_handler(fuzzy_search_server &fss);
 };
 
 

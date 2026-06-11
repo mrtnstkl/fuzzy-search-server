@@ -218,14 +218,6 @@ int main(int argc, char const *argv[])
 
 	std::cout << "\ninitialization took " << init_timer.stop().get() << "ms" << std::endl;
 
-	server.Get("/info", [&](const auto &, httplib::Response &res) {
-		res.set_content(
-			nlohmann::json({
-				{"startupTime", init_timer.get()}
-			}).dump(4),
-			"application/json"
-		);
-	});
 	server.set_post_routing_handler([](const auto&, auto& res) {
 		res.set_header("Access-Control-Allow-Origin", "*");
 		return true;

@@ -141,6 +141,12 @@ fuzzy_search_server::fuzzy_search_server(int ngram_size, size_t result_limit, ui
 
 bool fuzzy_search_server::load_dataset(const char* path, bool keep_elements_in_memory, bool discard_duplicates, std::regex name_field)
 {
+	if (ready_)
+	{
+		std::cerr << "Cannot load dataset after the database has been finalized" << std::endl;
+		return false;
+	}
+
 	unsigned element_count = 0;
 	unsigned duplicate_count = 0;
 
@@ -229,6 +235,7 @@ bool fuzzy_search_server::finalize()
 	timer db_init_timer;
 	database_.build();
 	std::cout << "database prepared in " << db_init_timer.stop().get() << "ms" << std::endl;
+	ready_ = true;
 	return true;
 }
 
@@ -277,19 +284,20 @@ std::string fuzzy_search_server::search_fuzzy_complete(std::string q, bool as_li
 void fuzzy_search_server::set_handlers(httplib::Server &server)
 {
 	auto base_url = base_url_;
-	if (!base_url.empty() && !base_url.ends_with('/'))
+	if (!base_url.empty() && !base_url.starts_with('/'))
 	{
-		base_url += '/';
+		base_url = '/' + base_url;
 	}
 	std::cout << "configuring endpoints at " << (base_url.empty() ? "/" : base_url) << std::endl;
-	server.Get("/" + base_url + "fuzzy", fuzzy_handler(*this));
-	server.Get("/" + base_url + "fuzzy/list", fuzzy_list_handler(*this));
-	server.Get("/" + base_url + "fuzzycomplete", fuzzycomplete_handler(*this));
-	server.Get("/" + base_url + "fuzzycomplete/list", fuzzycomplete_list_handler(*this));
-	server.Get("/" + base_url + "exact", exact_handler(*this));
-	server.Get("/" + base_url + "exact/list", exact_list_handler(*this));
-	server.Get("/" + base_url + "complete", completion_handler(*this));
-	server.Get("/" + base_url + "complete/list", completion_list_handler(*this));
+	server.Get((base_url.empty() ? "/" : base_url), info_handler(*this));
+	server.Get(base_url + "/fuzzy", fuzzy_handler(*this));
+	server.Get(base_url + "/fuzzy/list", fuzzy_list_handler(*this));
+	server.Get(base_url + "/fuzzycomplete", fuzzycomplete_handler(*this));
+	server.Get(base_url + "/fuzzycomplete/list", fuzzycomplete_list_handler(*this));
+	server.Get(base_url + "/exact", exact_handler(*this));
+	server.Get(base_url + "/exact/list", exact_list_handler(*this));
+	server.Get(base_url + "/complete", completion_handler(*this));
+	server.Get(base_url + "/complete/list", completion_list_handler(*this));
 }
 
 fuzzy_search_server fuzzy_search_server::from_config(const nlohmann::json& config, const fss_options& defaults)
