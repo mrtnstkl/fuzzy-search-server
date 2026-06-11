@@ -1,5 +1,7 @@
 # Fuzzy Search Server API
 
+The fuzzy search server provides several endpoints for searching through the loaded datasets. Each endpoint accepts a search term and returns matching entries based on different criteria. The paths of the endpoints are relative to the `baseUrl` of each search module as defined in the configuration. If no `baseUrl` is defined (always the case when configured via command-line options), the endpoints will be available at the root path.
+
 ## Fuzzy Search
 
 Searches for entries with the most similar names. Similarity is determined by calculating the optimal string alignment distance.
